@@ -3,15 +3,15 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "企业外汇套保与风险分析平台",
-  description: "面向出口企业的交互式外汇套保收益与风险情景分析平台。",
+  description: "面向出口企业的多产品组合套保、收益曲线与风险情景分析平台。",
   openGraph: {
     title: "企业外汇套保与风险分析平台",
-    description: "输入任意套保比例，实时比较远期套保与不套保的人民币收入曲线。",
+    description: "比较不套保、50%、80%、100%与自定义组合策略的收入边界和风险。",
     type: "website",
     locale: "zh_CN",
     images: [
       {
-        url: "/fx-hedging-social-card.png",
+        url: "/og-composite-v2.png",
         width: 1734,
         height: 907,
         alt: "企业外汇套保与风险分析平台",

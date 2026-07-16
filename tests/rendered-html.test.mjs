@@ -35,6 +35,14 @@ test("server-renders the Chinese hedge analysis platform", async () => {
   assert.match(html, /预计人民币收入/);
   assert.match(html, /到期汇率对人民币收入的影响/);
   assert.match(html, /不套保/);
+  assert.match(html, /组合策略对比/);
+  assert.match(html, /策略 = 多个产品组成项/);
+  assert.match(html, /套保 50%/);
+  assert.match(html, /套保 80%/);
+  assert.match(html, /套保 100%/);
+  assert.match(html, /自定义 49%/);
+  assert.match(html, /最差情景收入/);
+  assert.match(html, /收入波动区间/);
 });
 
 test("serves a compact content security policy", async () => {

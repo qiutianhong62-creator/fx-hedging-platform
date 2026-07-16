@@ -3,6 +3,14 @@
 import { useMemo, useState } from "react";
 import { IncomeChart } from "../components/IncomeChart";
 import {
+  StrategyComparisonChart,
+  type ComparisonSeries,
+} from "../components/StrategyComparisonChart";
+import {
+  compareCompositeStrategy,
+  createForwardStrategy,
+} from "../lib/strategies/composite";
+import {
   buildForwardScenarios,
   calculateForward,
 } from "../lib/strategies/forward";
@@ -13,6 +21,14 @@ const products = [
   { name: "外汇掉期", status: "规划中", active: false },
   { name: "货币市场套保", status: "规划中", active: false },
 ];
+
+const strategyColors: Record<string, string> = {
+  open: "#e5824f",
+  half: "#4f86c6",
+  eighty: "#8c6bb1",
+  full: "#087f73",
+  custom: "#17374f",
+};
 
 const money = new Intl.NumberFormat("zh-CN", {
   maximumFractionDigits: 0,
@@ -62,6 +78,50 @@ export default function Home() {
   const protectsIncome = summary.differenceCny >= 0;
   const selectedLabel = protectsIncome ? "套保保护" : "机会成本";
   const ratioLabel = `${Math.round(normalized.hedgeRatio * 100)}%`;
+
+  const strategyComparisons = useMemo(() => {
+    const strategies = [
+      createForwardStrategy("open", "不套保", 0, normalized.forwardRate, "保留全部汇率波动"),
+      createForwardStrategy("half", "套保 50%", 0.5, normalized.forwardRate, "稳定与机会之间的基础平衡"),
+      createForwardStrategy("eighty", "套保 80%", 0.8, normalized.forwardRate, "以收入稳定为主要目标"),
+      createForwardStrategy("full", "套保 100%", 1, normalized.forwardRate, "完全锁定远期结汇收入"),
+      createForwardStrategy(
+        "custom",
+        `自定义 ${Math.round(normalized.hedgeRatio * 100)}%`,
+        normalized.hedgeRatio,
+        normalized.forwardRate,
+        "当前自定义组合策略",
+      ),
+    ];
+    return strategies.map((strategy) =>
+      compareCompositeStrategy(
+        normalized.exposureUsd,
+        normalized.maturitySpot,
+        strategy,
+        normalized.minimum,
+        normalized.maximum,
+      ),
+    );
+  }, [normalized]);
+
+  const comparisonSeries: ComparisonSeries[] = strategyComparisons.map((item) => ({
+    id: item.strategy.id,
+    label: item.strategy.name,
+    color: strategyColors[item.strategy.id],
+    points: item.scenarios,
+    emphasized: item.strategy.id === "custom",
+    dashed: item.strategy.id === "custom",
+  }));
+
+  const customComparison = strategyComparisons.find(
+    (item) => item.strategy.id === "custom",
+  )!;
+  const mostStable = strategyComparisons.reduce((best, item) =>
+    item.incomeRangeCny < best.incomeRangeCny ? item : best,
+  );
+  const highestIncome = strategyComparisons.reduce((best, item) =>
+    item.selected.totalIncomeCny > best.selected.totalIncomeCny ? item : best,
+  );
 
   return (
     <main>
@@ -175,6 +235,24 @@ export default function Home() {
             <div className="range-ends"><span>0%</span><span>100%</span></div>
           </div>
 
+          <div className="composition-box">
+            <div className="composition-title">
+              <span>当前组合策略</span>
+              <small>总配置 100%</small>
+            </div>
+            <div className="strategy-leg active-leg">
+              <span><i />远期结汇</span>
+              <strong>{ratioLabel}</strong>
+            </div>
+            <div className="strategy-leg open-leg">
+              <span><i />未套保部分</span>
+              <strong>{Math.round((1 - normalized.hedgeRatio) * 100)}%</strong>
+            </div>
+            <div className="future-leg-row" aria-label="未来可加入的策略产品">
+              <span>＋ 期权</span><span>＋ 期货</span><span>＋ 掉期</span>
+            </div>
+          </div>
+
           <label className="field">
             <span>观察的到期即期汇率</span>
             <div className="input-shell emphasized">
@@ -282,17 +360,134 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="comparison-section" id="strategy-comparison">
+        <div className="comparison-header">
+          <div>
+            <p className="eyebrow">组合策略对比</p>
+            <h2>同一笔敞口，不同策略会带来怎样的收入边界？</h2>
+            <p>
+              同时比较不套保、50%、80%、100%和当前自定义组合。每个策略由多个产品组成项汇总，未来可直接加入期权、期货和掉期。
+            </p>
+          </div>
+          <div className="architecture-badge">
+            <span>策略 = 多个产品组成项</span>
+            <small>当前已接入：远期＋未套保</small>
+          </div>
+        </div>
+
+        <div className="comparison-kpis">
+          <article>
+            <span>情景内收入最稳定</span>
+            <strong>{mostStable.strategy.name}</strong>
+            <small>波动区间 ¥{wan.format(mostStable.incomeRangeCny / 10_000)}万</small>
+          </article>
+          <article>
+            <span>当前汇率下收入最高</span>
+            <strong>{highestIncome.strategy.name}</strong>
+            <small>到期收入 ¥{wan.format(highestIncome.selected.totalIncomeCny / 10_000)}万</small>
+          </article>
+          <article className="custom-kpi">
+            <span>自定义组合的风险敞口</span>
+            <strong>{Math.round(customComparison.selected.uncoveredRatio * 100)}%</strong>
+            <small>仍随到期即期汇率变化</small>
+          </article>
+        </div>
+
+        <div className="comparison-chart-card">
+          <div className="chart-heading">
+            <div>
+              <h3>五种策略的人民币收入曲线</h3>
+              <p>曲线越平，收入越稳定；曲线越陡，保留的汇率上涨机会和下跌风险越多。</p>
+            </div>
+            <div className="comparison-legend" aria-label="策略图例">
+              {comparisonSeries.map((item) => (
+                <span key={item.id} className={item.id === "custom" ? "custom" : ""}>
+                  <i style={{ backgroundColor: item.color }} />{item.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <StrategyComparisonChart
+            series={comparisonSeries}
+            selectedSpot={normalized.maturitySpot}
+          />
+        </div>
+
+        <div className="comparison-table-wrap">
+          <table className="comparison-table">
+            <thead>
+              <tr>
+                <th>策略</th>
+                <th>当前组成</th>
+                <th>到期收入</th>
+                <th>最差情景收入</th>
+                <th>收入波动区间</th>
+                <th>相对不套保</th>
+              </tr>
+            </thead>
+            <tbody>
+              {strategyComparisons.map((item) => {
+                const coverage = Math.round(item.selected.coveredRatio * 100);
+                const difference = item.selected.differenceCny;
+                return (
+                  <tr key={item.strategy.id} className={item.strategy.id === "custom" ? "selected-row" : ""}>
+                    <th scope="row">
+                      <span className="table-strategy-name">
+                        <i style={{ backgroundColor: strategyColors[item.strategy.id] }} />
+                        {item.strategy.name}
+                      </span>
+                      <small>{item.strategy.description}</small>
+                    </th>
+                    <td>{coverage > 0 ? `远期 ${coverage}% ＋ 未套保 ${100 - coverage}%` : "未套保 100%"}</td>
+                    <td>¥{wan.format(item.selected.totalIncomeCny / 10_000)}万</td>
+                    <td>¥{wan.format(item.worstIncomeCny / 10_000)}万</td>
+                    <td>¥{wan.format(item.incomeRangeCny / 10_000)}万</td>
+                    <td className={difference >= 0 ? "gain" : "cost"}>
+                      {Math.abs(difference) < 1 ? "—" : `${difference > 0 ? "+" : "−"}¥${wan.format(Math.abs(difference) / 10_000)}万`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="decision-explanation">
+          <div>
+            <span>当前情景判断</span>
+            <p>
+              到期即期汇率 {normalized.maturitySpot.toFixed(2)}
+              {normalized.maturitySpot < normalized.forwardRate ? " 低于 " : " 高于 "}
+              远期价 {normalized.forwardRate.toFixed(2)}，因此提高远期比例会
+              {normalized.maturitySpot < normalized.forwardRate ? "增加当前情景下的人民币收入保护。" : "提高收入确定性，但也会增加机会成本。"}
+            </p>
+          </div>
+          <div>
+            <span>组合策略边界</span>
+            <p>
+              “最稳定”不等于“任何时候都最好”。后续加入期权费、掉期现金流和不同期限后，系统会先逐项计算，再汇总整套策略的成本与收益。
+            </p>
+          </div>
+          <div>
+            <span>盈亏平衡点</span>
+            <p>
+              对当前无成本远期案例，盈亏平衡点为 {normalized.forwardRate.toFixed(4)}。到期汇率低于该水平时套保提供保护，高于该水平时体现机会成本。
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section className="method-section">
         <div className="method-copy">
           <p className="eyebrow">计算逻辑</p>
           <h2>一个可审计、可扩展的产品计算框架</h2>
           <p>
-            当前远期产品按照“锁定部分 × 远期汇率 + 未锁定部分 × 到期即期汇率”计算。每种新产品将拥有独立的输入、现金流、收益函数和风险检查。
+            每个策略先拆分为多个产品组成项，分别计算名义金额、现金流、前期成本和到期收益，再汇总未套保部分。当前远期产品仍按照“锁定部分 × 远期汇率”计算。
           </p>
         </div>
         <div className="formula-card">
           <span>最终人民币收入</span>
-          <code>敞口 × 比例 × 远期价<br />＋ 敞口 × (1－比例) × 到期即期价</code>
+          <code>Σ（各产品组成项现金流－成本）<br />＋ 未覆盖敞口 × 到期即期价</code>
         </div>
       </section>
 
@@ -342,7 +537,7 @@ export default function Home() {
       <footer>
         <div>
           <strong>企业外汇套保与风险分析平台</strong>
-          <span>项目原型 · Forward Hedge MVP</span>
+          <span>项目原型 · Composite Strategy MVP</span>
         </div>
         <p>将金融逻辑转化为可解释、可扩展的软件产品。</p>
       </footer>

@@ -3,3 +3,6 @@
 from .forward import ForwardHedge, ForwardInputs, ScenarioPoint
 
 __all__ = ["ForwardHedge", "ForwardInputs", "ScenarioPoint"]
+from .composite import CompositeStrategy, ForwardLeg
+
+__all__ = ["CompositeStrategy", "ForwardLeg"]
