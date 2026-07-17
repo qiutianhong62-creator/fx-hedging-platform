@@ -10,6 +10,7 @@ import {
   defaultPortfolioTrades,
   productColors,
   productLabels,
+  tradeMatchesAnalysis,
   tradeDescription,
   usdNotional,
   type PortfolioTrade,
@@ -57,8 +58,11 @@ export function TradePortfolioLab() {
   const maximum = Math.max(scenarioMax, minimum + 0.01);
   const selected = Math.min(maximum, Math.max(minimum, selectedSpot));
   const context = useMemo(() => ({ analysisDate, referenceSpot: Math.max(0.0001, referenceSpot) }), [analysisDate, referenceSpot]);
-  const includedTrades = trades.filter((trade) => trade.enabled && trade.maturityDate === analysisDate);
+  const includedTrades = trades.filter((trade) => tradeMatchesAnalysis(trade, context));
   const excludedCount = trades.filter((trade) => trade.enabled && trade.maturityDate !== analysisDate).length;
+  const invalidSwapCount = trades.filter(
+    (trade) => trade.enabled && trade.product === "swap" && trade.nearDate >= trade.maturityDate,
+  ).length;
 
   const totalPayoff = useMemo(
     () => calculatePortfolioPayoffCny(trades, selected, context),
@@ -109,8 +113,7 @@ export function TradePortfolioLab() {
   };
 
   const changeProduct = (trade: PortfolioTrade, product: TradeProduct) => {
-    const fresh = createPortfolioTrade(product, trade.id, trade.maturityDate);
-    updateTrade(trade.id, { ...fresh, name: `新增${productLabels[product]}交易`, enabled: trade.enabled });
+    updateTrade(trade.id, { product });
   };
 
   const addTrade = (product: TradeProduct) => {
@@ -137,7 +140,7 @@ export function TradePortfolioLab() {
         <div className="portfolio-scenario-heading">
           <div>
             <strong>统一分析条件</strong>
-            <small>曲线只汇总与分析到期日一致且已启用的交易</small>
+            <small>曲线只汇总与分析到期日一致且已启用的交易；掉期以远端日期作为分析到期日</small>
           </div>
           <label className="show-legs-toggle">
             <input type="checkbox" checked={showLegs} onChange={(event) => setShowLegs(event.target.checked)} />
@@ -155,6 +158,8 @@ export function TradePortfolioLab() {
           <NumberField label="情景上限" value={scenarioMax} onChange={setScenarioMax} />
         </div>
         {excludedCount > 0 ? <p className="portfolio-warning">有 {excludedCount} 笔已启用交易的到期日不同，暂未计入当前曲线。</p> : null}
+        {invalidSwapCount > 0 ? <p className="portfolio-warning">有 {invalidSwapCount} 笔掉期的近端日期不早于远端日期，请调整后再计入曲线。</p> : null}
+        <p className="portfolio-rule">切换产品时，交易名称、金额、币种和日期不会被清空。掉期近端与远端方向自动相反，组合分析以远端日期为准。</p>
       </div>
 
       <div className="trade-list-heading">
@@ -172,7 +177,7 @@ export function TradePortfolioLab() {
       <div className="trade-list">
         {trades.map((trade, index) => {
           const payoff = calculateTradePayoffCny(trade, selected, context);
-          const included = trade.enabled && trade.maturityDate === analysisDate;
+          const included = tradeMatchesAnalysis(trade, context);
           return (
             <article className={`trade-card ${included ? "included" : "excluded"}`} key={trade.id} style={{ "--trade-color": productColors[trade.product] } as CSSProperties}>
               <div className="trade-color-bar" />
@@ -207,20 +212,42 @@ export function TradePortfolioLab() {
                   </select>
                 </label>
                 <label className="trade-field">
-                  <span>到期日</span>
+                  <span>{trade.product === "swap" ? "远端日期（分析到期日）" : "到期日"}</span>
                   <div><input type="date" value={trade.maturityDate} onChange={(event) => updateTrade(trade.id, { maturityDate: event.target.value })} /></div>
                 </label>
 
-                {trade.product === "forward" || trade.product === "swap" ? (
+                {trade.product === "forward" ? (
                   <>
                     <label className="trade-select-field">
-                      <span>{trade.product === "forward" ? "远期方向" : "掉期远端方向"}</span>
+                      <span>远期方向</span>
                       <select value={trade.direction} onChange={(event) => updateTrade(trade.id, { direction: event.target.value as PortfolioTrade["direction"] })}>
-                        <option value="buyUsd">{trade.product === "forward" ? "远期购汇" : "远端购汇"}</option>
-                        <option value="sellUsd">{trade.product === "forward" ? "远期结汇" : "远端结汇"}</option>
+                        <option value="buyUsd">远期购汇</option>
+                        <option value="sellUsd">远期结汇</option>
                       </select>
                     </label>
-                    <NumberField label={trade.product === "forward" ? "远期汇率" : "掉期远端汇率"} value={trade.contractRate} onChange={(value) => updateTrade(trade.id, { contractRate: value })} />
+                    <NumberField label="远期汇率" value={trade.contractRate} onChange={(value) => updateTrade(trade.id, { contractRate: value })} />
+                  </>
+                ) : null}
+
+                {trade.product === "swap" ? (
+                  <>
+                    <label className="trade-field">
+                      <span>近端日期</span>
+                      <div><input type="date" value={trade.nearDate} onChange={(event) => updateTrade(trade.id, { nearDate: event.target.value })} /></div>
+                    </label>
+                    <label className="trade-select-field">
+                      <span>近端方向</span>
+                      <select value={trade.direction} onChange={(event) => updateTrade(trade.id, { direction: event.target.value as PortfolioTrade["direction"] })}>
+                        <option value="buyUsd">近端购汇</option>
+                        <option value="sellUsd">近端结汇</option>
+                      </select>
+                    </label>
+                    <NumberField label="近端汇率" value={trade.nearRate} onChange={(value) => updateTrade(trade.id, { nearRate: value })} />
+                    <label className="trade-readonly-field">
+                      <span>远端方向（自动相反）</span>
+                      <div>{trade.direction === "buyUsd" ? "远端结汇" : "远端购汇"}</div>
+                    </label>
+                    <NumberField label="远端汇率" value={trade.contractRate} onChange={(value) => updateTrade(trade.id, { contractRate: value })} />
                   </>
                 ) : null}
 
@@ -260,7 +287,7 @@ export function TradePortfolioLab() {
                   {trade.product !== "deposit" && trade.notionalCurrency === "CNY" ? <small>折算美元名义本金约 ${money.format(usdNotional(trade))}</small> : null}
                 </div>
                 <div className={payoff >= 0 ? "trade-payoff gain" : "trade-payoff loss"}>
-                  <span>{included ? `汇率 ${selected.toFixed(4)} 时` : "未计入当前曲线"}</span>
+                  <span>{included ? `汇率 ${selected.toFixed(4)} 时` : trade.product === "swap" && trade.nearDate >= trade.maturityDate ? "近端日期应早于远端" : "未计入当前曲线"}</span>
                   <strong>{included ? signedMoney(payoff) : "—"}</strong>
                 </div>
               </div>

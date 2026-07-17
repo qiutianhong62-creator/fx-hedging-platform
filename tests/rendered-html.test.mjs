@@ -42,6 +42,9 @@ test("server-renders the Chinese hedge analysis platform", async () => {
   assert.match(html, /你的交易清单/);
   assert.match(html, /组合损益 = Σ 每笔交易损益/);
   assert.match(html, /自选产品组合的到期损益曲线/);
+  assert.match(html, /掉期以远端日期作为分析到期日/);
+  assert.match(html, /切换产品时，交易名称、金额、币种和日期不会被清空/);
+  assert.match(html, /掉期近端与远端方向自动相反/);
   assert.match(html, /＋(?:<!-- -->)?远期/);
   assert.match(html, /＋(?:<!-- -->)?期权/);
   assert.match(html, /＋(?:<!-- -->)?掉期/);

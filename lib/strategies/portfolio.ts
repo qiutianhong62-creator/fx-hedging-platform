@@ -11,10 +11,12 @@ export type PortfolioTrade = {
   name: string;
   enabled: boolean;
   product: TradeProduct;
+  nearDate: string;
   maturityDate: string;
   notional: number;
   notionalCurrency: Currency;
   direction: FxDirection;
+  nearRate: number;
   contractRate: number;
   optionKind: OptionKind;
   optionPosition: OptionPosition;
@@ -50,10 +52,12 @@ export const defaultPortfolioTrades: PortfolioTrade[] = [
     name: "1万元人民币远期购汇",
     enabled: true,
     product: "forward",
+    nearDate: "2026-07-17",
     maturityDate: "2026-12-31",
     notional: 10_000,
     notionalCurrency: "CNY",
     direction: "buyUsd",
+    nearRate: 6.80,
     contractRate: 6.74,
     optionKind: "call",
     optionPosition: "buy",
@@ -68,10 +72,12 @@ export const defaultPortfolioTrades: PortfolioTrade[] = [
     name: "卖出1万元名义金额看涨期权",
     enabled: true,
     product: "option",
+    nearDate: "2026-07-17",
     maturityDate: "2026-12-31",
     notional: 10_000,
     notionalCurrency: "CNY",
     direction: "buyUsd",
+    nearRate: 6.80,
     contractRate: 6.74,
     optionKind: "call",
     optionPosition: "sell",
@@ -90,10 +96,12 @@ export function createPortfolioTrade(product: TradeProduct, id: string, maturity
     name: `新增${label}交易`,
     enabled: true,
     product,
+    nearDate: "2026-07-17",
     maturityDate,
     notional: 10_000,
     notionalCurrency: "CNY",
     direction: "buyUsd",
+    nearRate: 6.80,
     contractRate: 6.74,
     optionKind: "call",
     optionPosition: "buy",
@@ -111,8 +119,17 @@ function safePositive(value: number, fallback: number) {
 
 export function usdNotional(trade: PortfolioTrade) {
   if (trade.notionalCurrency === "USD") return Math.max(0, trade.notional);
-  const conversionRate = trade.product === "option" ? trade.strike : trade.contractRate;
+  const conversionRate = trade.product === "option"
+    ? trade.strike
+    : trade.product === "swap"
+      ? trade.nearRate
+      : trade.contractRate;
   return Math.max(0, trade.notional) / safePositive(conversionRate, 1);
+}
+
+export function tradeMatchesAnalysis(trade: PortfolioTrade, context: PortfolioContext) {
+  const validSwapDates = trade.product !== "swap" || trade.nearDate < trade.maturityDate;
+  return trade.enabled && validSwapDates && trade.maturityDate === context.analysisDate;
 }
 
 export function calculateTradePayoffCny(
@@ -120,15 +137,28 @@ export function calculateTradePayoffCny(
   maturitySpot: number,
   context: PortfolioContext,
 ) {
-  if (!trade.enabled || trade.maturityDate !== context.analysisDate) return 0;
+  if (!tradeMatchesAnalysis(trade, context)) return 0;
 
   const spot = safePositive(maturitySpot, context.referenceSpot);
   const amount = Math.max(0, Number.isFinite(trade.notional) ? trade.notional : 0);
 
-  if (trade.product === "forward" || trade.product === "swap") {
+  if (trade.product === "forward") {
     const amountUsd = usdNotional(trade);
     const direction = trade.direction === "buyUsd" ? 1 : -1;
     return direction * (spot - safePositive(trade.contractRate, context.referenceSpot)) * amountUsd;
+  }
+
+  if (trade.product === "swap") {
+    const amountUsd = usdNotional(trade);
+    const nearDirection = trade.direction === "buyUsd" ? 1 : -1;
+    const nearPayoff = nearDirection
+      * (context.referenceSpot - safePositive(trade.nearRate, context.referenceSpot))
+      * amountUsd;
+    const farDirection = -nearDirection;
+    const farPayoff = farDirection
+      * (spot - safePositive(trade.contractRate, context.referenceSpot))
+      * amountUsd;
+    return nearPayoff + farPayoff;
   }
 
   if (trade.product === "option") {
@@ -182,7 +212,9 @@ export function tradeDescription(trade: PortfolioTrade) {
     return `${trade.direction === "buyUsd" ? "远期购汇" : "远期结汇"} · 锁定价 ${trade.contractRate.toFixed(4)}`;
   }
   if (trade.product === "swap") {
-    return `${trade.direction === "buyUsd" ? "远端购汇" : "远端结汇"} · 远端价 ${trade.contractRate.toFixed(4)}`;
+    const near = trade.direction === "buyUsd" ? "近端购汇" : "近端结汇";
+    const far = trade.direction === "buyUsd" ? "远端结汇" : "远端购汇";
+    return `${near} ${trade.nearRate.toFixed(4)} → ${far} ${trade.contractRate.toFixed(4)}`;
   }
   if (trade.product === "option") {
     return `${trade.optionPosition === "buy" ? "买入" : "卖出"}${trade.optionKind === "call" ? "看涨" : "看跌"} · 执行价 ${trade.strike.toFixed(4)}`;
