@@ -33,10 +33,15 @@ type NumberFieldProps = {
   onChange: (value: number) => void;
   step?: number;
   suffix?: string;
+  displayPrecision?: number;
 };
 
-function NumberField({ label, value, onChange, step = 0.0001, suffix }: NumberFieldProps) {
-  const displayValue = Number.isFinite(value) ? value : "";
+function NumberField({ label, value, onChange, step = 0.0001, suffix, displayPrecision }: NumberFieldProps) {
+  const displayValue = Number.isFinite(value)
+    ? displayPrecision === undefined
+      ? value
+      : Number(value.toFixed(displayPrecision))
+    : "";
   return (
     <label className="trade-field">
       <span>{label}</span>
@@ -61,6 +66,11 @@ function signedMoney(value: number) {
 
 function safeNumber(value: number, fallback: number) {
   return Number.isFinite(value) ? value : fallback;
+}
+
+function percentToDecimal(value: number) {
+  if (!Number.isFinite(value)) return Number.NaN;
+  return Math.round(value * 10_000) / 1_000_000;
 }
 
 function formatPercent(value: number) {
@@ -398,8 +408,8 @@ export function TradePortfolioLab() {
 
                 {trade.product === "deposit" ? (
                   <>
-                    <NumberField label="存款年利率" value={trade.annualRate * 100} step={0.01} onChange={(value) => updateTrade(trade.id, { annualRate: value / 100 })} suffix="%" />
-                    <NumberField label="利息税率" value={trade.taxRate * 100} step={1} onChange={(value) => updateTrade(trade.id, { taxRate: value / 100 })} suffix="%" />
+                    <NumberField label="存款年利率" value={trade.annualRate * 100} step={0.01} displayPrecision={4} onChange={(value) => updateTrade(trade.id, { annualRate: percentToDecimal(value) })} suffix="%" />
+                    <NumberField label="利息税率" value={trade.taxRate * 100} step={1} displayPrecision={4} onChange={(value) => updateTrade(trade.id, { taxRate: percentToDecimal(value) })} suffix="%" />
                     <NumberField label="计息天数" value={trade.dayCount} step={1} onChange={(value) => updateTrade(trade.id, { dayCount: value })} suffix="天" />
                   </>
                 ) : null}
