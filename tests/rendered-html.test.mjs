@@ -50,6 +50,8 @@ test("server-renders the Chinese hedge analysis platform", async () => {
   assert.match(html, /组合持有期收益率/);
   assert.match(html, /组合年化收益率（参考）/);
   assert.match(html, /收益率口径/);
+  assert.match(html, /定存会自动计算税前、税额与税后利息/);
+  assert.match(html, /远期还可以直接引用任一定存的税后利息/);
   assert.match(html, /＋(?:<!-- -->)?远期/);
   assert.match(html, /＋(?:<!-- -->)?期权/);
   assert.match(html, /＋(?:<!-- -->)?掉期/);

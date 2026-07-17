@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { StrategyComparisonChart, type ComparisonSeries } from "./StrategyComparisonChart";
 import {
   buildPortfolioScenarios,
+  calculateDepositInterest,
   calculatePortfolioPayoffCny,
   calculatePortfolioReferenceProfitCny,
   calculateSwapQuote,
@@ -15,6 +16,7 @@ import {
   normalizeAutomaticTradeNames,
   productColors,
   productLabels,
+  resolveLinkedNotionals,
   tradeHasRequiredInputs,
   tradeMatchesAnalysis,
   tradeDescription,
@@ -87,12 +89,18 @@ export function TradePortfolioLab() {
     () => ({ analysisDate, referenceSpot: Math.max(0.0001, safeNumber(referenceSpot, 6.8)) }),
     [analysisDate, referenceSpot],
   );
-  const includedTrades = trades.filter((trade) => tradeMatchesAnalysis(trade, context));
-  const excludedCount = trades.filter((trade) => trade.enabled && trade.maturityDate !== analysisDate).length;
-  const invalidSwapCount = trades.filter(
+  const resolvedTrades = useMemo(() => resolveLinkedNotionals(trades), [trades]);
+  const resolvedById = useMemo(
+    () => new Map(resolvedTrades.map((trade) => [trade.id, trade])),
+    [resolvedTrades],
+  );
+  const depositTrades = trades.filter((trade) => trade.product === "deposit");
+  const includedTrades = resolvedTrades.filter((trade) => tradeMatchesAnalysis(trade, context));
+  const excludedCount = resolvedTrades.filter((trade) => trade.enabled && trade.maturityDate !== analysisDate).length;
+  const invalidSwapCount = resolvedTrades.filter(
     (trade) => trade.enabled && trade.product === "swap" && trade.nearDate >= trade.maturityDate,
   ).length;
-  const incompleteCount = trades.filter(
+  const incompleteCount = resolvedTrades.filter(
     (trade) => trade.enabled
       && trade.maturityDate === analysisDate
       && !(trade.product === "swap" && trade.nearDate >= trade.maturityDate)
@@ -100,17 +108,17 @@ export function TradePortfolioLab() {
   ).length;
 
   const totalPayoff = useMemo(
-    () => calculatePortfolioPayoffCny(trades, selected, context),
-    [context, selected, trades],
+    () => calculatePortfolioPayoffCny(resolvedTrades, selected, context),
+    [context, resolvedTrades, selected],
   );
   const referenceProfit = useMemo(
-    () => calculatePortfolioReferenceProfitCny(trades, selected, context),
-    [context, selected, trades],
+    () => calculatePortfolioReferenceProfitCny(resolvedTrades, selected, context),
+    [context, resolvedTrades, selected],
   );
 
   const totalSeries = useMemo(
-    () => buildPortfolioScenarios(trades, context, minimum, maximum),
-    [context, maximum, minimum, trades],
+    () => buildPortfolioScenarios(resolvedTrades, context, minimum, maximum),
+    [context, maximum, minimum, resolvedTrades],
   );
 
   const series = useMemo<ComparisonSeries[]>(() => {
@@ -162,7 +170,13 @@ export function TradePortfolioLab() {
 
   const changeProduct = (trade: PortfolioTrade, product: TradeProduct) => {
     setTrades((current) => normalizeAutomaticTradeNames(
-      current.map((item) => item.id === trade.id ? { ...item, product } : item),
+      current.map((item) => {
+        if (item.id === trade.id) return { ...item, product };
+        if (trade.product === "deposit" && product !== "deposit" && item.notionalSourceTradeId === trade.id) {
+          return { ...item, notionalSourceTradeId: null };
+        }
+        return item;
+      }),
     ));
   };
 
@@ -223,7 +237,7 @@ export function TradePortfolioLab() {
         {excludedCount > 0 ? <p className="portfolio-warning">有 {excludedCount} 笔已启用交易的到期日不同，暂未计入当前曲线。</p> : null}
         {invalidSwapCount > 0 ? <p className="portfolio-warning">有 {invalidSwapCount} 笔掉期的近端日期不早于远端日期，请调整后再计入曲线。</p> : null}
         {incompleteCount > 0 ? <p className="portfolio-warning">有 {incompleteCount} 笔交易的数字尚未填写完整，补齐后会自动计入曲线。</p> : null}
-        <p className="portfolio-rule">切换产品时，交易名称、金额、币种和日期不会被清空。掉期近端与远端方向自动相反，组合分析以远端日期为准；填入金额和近远端汇率后，会自动展示兑换金额、点差、期限和掉期年化收益。</p>
+        <p className="portfolio-rule">切换产品时，交易名称、金额、币种和日期不会被清空。掉期近端与远端方向自动相反，并自动展示兑换金额、点差、期限和掉期年化收益；定存会自动计算税前、税额与税后利息，远期还可以直接引用任一定存的税后利息。</p>
       </div>
 
       <div className="trade-list-heading">
@@ -240,10 +254,15 @@ export function TradePortfolioLab() {
 
       <div className="trade-list">
         {trades.map((trade, index) => {
-          const payoff = calculateTradePayoffCny(trade, selected, context);
-          const included = tradeMatchesAnalysis(trade, context);
-          const swapQuote = trade.product === "swap" ? calculateSwapQuote(trade) : null;
-          const amountUsd = usdNotional(trade);
+          const effectiveTrade = resolvedById.get(trade.id) ?? trade;
+          const payoff = calculateTradePayoffCny(effectiveTrade, selected, context);
+          const included = tradeMatchesAnalysis(effectiveTrade, context);
+          const swapQuote = trade.product === "swap" ? calculateSwapQuote(effectiveTrade) : null;
+          const depositInterest = trade.product === "deposit" ? calculateDepositInterest(effectiveTrade) : null;
+          const linkedDeposit = trade.notionalSourceTradeId
+            ? depositTrades.find((item) => item.id === trade.notionalSourceTradeId)
+            : undefined;
+          const amountUsd = usdNotional(effectiveTrade);
           return (
             <article className={`trade-card ${included ? "included" : "excluded"}`} key={trade.id} style={{ "--trade-color": productColors[trade.product] } as CSSProperties}>
               <div className="trade-color-bar" />
@@ -251,7 +270,11 @@ export function TradePortfolioLab() {
                 <span className="trade-number">交易 {index + 1}</span>
                 <div className="trade-card-actions">
                   <label><input type="checkbox" checked={trade.enabled} onChange={(event) => updateTrade(trade.id, { enabled: event.target.checked })} />启用</label>
-                  <button type="button" onClick={() => setTrades((current) => normalizeAutomaticTradeNames(current.filter((item) => item.id !== trade.id)))}>删除</button>
+                  <button type="button" onClick={() => setTrades((current) => normalizeAutomaticTradeNames(
+                    current
+                      .filter((item) => item.id !== trade.id)
+                      .map((item) => item.notionalSourceTradeId === trade.id ? { ...item, notionalSourceTradeId: null } : item),
+                  ))}>删除</button>
                 </div>
               </div>
 
@@ -275,10 +298,39 @@ export function TradePortfolioLab() {
               </div>
 
               <div className="trade-input-grid">
-                <NumberField label={trade.product === "swap" ? "近端名义金额" : "名义金额"} value={trade.notional} step={1000} onChange={(value) => updateTrade(trade.id, { notional: value })} />
+                {trade.product === "forward" ? (
+                  <label className="trade-select-field">
+                    <span>名义金额来源</span>
+                    <select
+                      value={trade.notionalSourceTradeId ?? "manual"}
+                      onChange={(event) => updateTrade(trade.id, {
+                        notionalSourceTradeId: event.target.value === "manual" ? null : event.target.value,
+                      })}
+                    >
+                      <option value="manual">手动输入</option>
+                      {depositTrades.map((deposit) => {
+                        const interest = calculateDepositInterest(deposit);
+                        const symbol = deposit.notionalCurrency === "USD" ? "$" : "¥";
+                        return <option key={deposit.id} value={deposit.id}>引用 {deposit.name} 税后利息 {symbol}{money.format(interest.netInterest)}</option>;
+                      })}
+                    </select>
+                  </label>
+                ) : null}
+                {trade.product === "forward" && linkedDeposit ? (
+                  <label className="trade-readonly-field">
+                    <span>引用后的名义金额</span>
+                    <div>{effectiveTrade.notionalCurrency === "USD" ? "$" : "¥"}{money.format(effectiveTrade.notional)}</div>
+                  </label>
+                ) : (
+                  <NumberField label={trade.product === "swap" ? "近端名义金额" : "名义金额"} value={trade.notional} step={1000} onChange={(value) => updateTrade(trade.id, { notional: value })} />
+                )}
                 <label className="trade-select-field">
                   <span>{trade.product === "swap" ? "近端金额币种" : "金额币种"}</span>
-                  <select value={trade.notionalCurrency} onChange={(event) => updateTrade(trade.id, { notionalCurrency: event.target.value as PortfolioTrade["notionalCurrency"] })}>
+                  <select
+                    value={effectiveTrade.notionalCurrency}
+                    disabled={Boolean(linkedDeposit)}
+                    onChange={(event) => updateTrade(trade.id, { notionalCurrency: event.target.value as PortfolioTrade["notionalCurrency"] })}
+                  >
                     <option value="CNY">人民币 CNY</option>
                     <option value="USD">美元 USD</option>
                   </select>
@@ -353,6 +405,42 @@ export function TradePortfolioLab() {
                 ) : null}
               </div>
 
+              {trade.product === "forward" && linkedDeposit ? (
+                <div className="linked-source-note">
+                  <strong>已引用 {linkedDeposit.name} 的税后利息</strong>
+                  <span>定存本金、利率、税率或天数变化时，这笔远期的金额会自动更新。</span>
+                </div>
+              ) : null}
+
+              {depositInterest ? (
+                <div className={`deposit-auto-quote ${depositInterest.valid ? "valid" : "incomplete"}`}>
+                  <div className="swap-auto-heading">
+                    <strong>定存利息自动计算</strong>
+                    <small>本金 × 年利率 × 计息天数 ÷ 360，再扣除利息税</small>
+                  </div>
+                  <div className="deposit-auto-grid">
+                    <div>
+                      <span>税前利息</span>
+                      <strong>{depositInterest.valid ? `${trade.notionalCurrency === "USD" ? "$" : "¥"}${money.format(depositInterest.grossInterest)}` : "等待完整参数"}</strong>
+                    </div>
+                    <div>
+                      <span>利息税</span>
+                      <strong>{depositInterest.valid ? `−${trade.notionalCurrency === "USD" ? "$" : "¥"}${money.format(depositInterest.taxAmount)}` : "—"}</strong>
+                    </div>
+                    <div className="net-interest-cell">
+                      <span>税后利息（可被远期引用）</span>
+                      <strong>{depositInterest.valid ? `${trade.notionalCurrency === "USD" ? "$" : "¥"}${money.format(depositInterest.netInterest)}` : "—"}</strong>
+                    </div>
+                    <div>
+                      <span>税后年化与人民币参考值</span>
+                      <strong>{depositInterest.valid
+                        ? `${formatPercent(depositInterest.netAnnualRate)} · ¥${money.format(trade.notionalCurrency === "USD" ? depositInterest.netInterest * selected : depositInterest.netInterest)}`
+                        : "—"}</strong>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {swapQuote ? (
                 <div className={`swap-auto-quote ${swapQuote.valid ? "valid" : "incomplete"}`}>
                   <div className="swap-auto-heading">
@@ -392,15 +480,15 @@ export function TradePortfolioLab() {
 
               <div className="trade-card-footer">
                 <div>
-                  <span>{tradeDescription(trade)}</span>
-                  {trade.product !== "deposit" && trade.notionalCurrency === "CNY" && amountUsd > 0 ? <small>折算美元名义本金约 ${money.format(amountUsd)}</small> : null}
+                  <span>{tradeDescription(effectiveTrade)}</span>
+                  {trade.product !== "deposit" && effectiveTrade.notionalCurrency === "CNY" && amountUsd > 0 ? <small>折算美元名义本金约 ${money.format(amountUsd)}</small> : null}
                 </div>
                 <div className={payoff >= 0 ? "trade-payoff gain" : "trade-payoff loss"}>
                   <span>{included
                     ? `汇率 ${selected.toFixed(4)} 时`
                     : trade.product === "swap" && trade.nearDate >= trade.maturityDate
                       ? "近端日期应早于远端"
-                      : !tradeHasRequiredInputs(trade)
+                      : !tradeHasRequiredInputs(effectiveTrade)
                         ? "请补齐数字"
                         : "未计入当前曲线"}</span>
                   <strong>{included ? signedMoney(payoff) : "—"}</strong>

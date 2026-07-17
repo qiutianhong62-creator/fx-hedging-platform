@@ -16,6 +16,7 @@ export type PortfolioTrade = {
   maturityDate: string;
   notional: number;
   notionalCurrency: Currency;
+  notionalSourceTradeId: string | null;
   direction: FxDirection;
   nearRate: number;
   contractRate: number;
@@ -58,6 +59,7 @@ export const defaultPortfolioTrades: PortfolioTrade[] = [
     maturityDate: "2026-12-31",
     notional: 10_000,
     notionalCurrency: "CNY",
+    notionalSourceTradeId: null,
     direction: "buyUsd",
     nearRate: 6.80,
     contractRate: 6.74,
@@ -79,6 +81,7 @@ export const defaultPortfolioTrades: PortfolioTrade[] = [
     maturityDate: "2026-12-31",
     notional: 10_000,
     notionalCurrency: "CNY",
+    notionalSourceTradeId: null,
     direction: "buyUsd",
     nearRate: 6.80,
     contractRate: 6.74,
@@ -104,6 +107,7 @@ export function createPortfolioTrade(product: TradeProduct, id: string, maturity
     maturityDate,
     notional: 10_000,
     notionalCurrency: "CNY",
+    notionalSourceTradeId: null,
     direction: "buyUsd",
     nearRate: 6.80,
     contractRate: 6.74,
@@ -143,6 +147,45 @@ export function differenceInDays(startDate: string, endDate: string) {
   const end = Date.parse(`${endDate}T00:00:00Z`);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
   return Math.max(0, Math.round((end - start) / 86_400_000));
+}
+
+export function calculateDepositInterest(trade: PortfolioTrade) {
+  const principal = isPositive(trade.notional) ? trade.notional : 0;
+  const annualRate = isNonNegative(trade.annualRate) ? trade.annualRate : 0;
+  const taxRate = isNonNegative(trade.taxRate) ? Math.min(1, trade.taxRate) : 0;
+  const dayCount = isPositive(trade.dayCount) ? trade.dayCount : 0;
+  const grossInterest = principal * annualRate * dayCount / 360;
+  const taxAmount = grossInterest * taxRate;
+  const netInterest = grossInterest - taxAmount;
+  return {
+    currency: trade.notionalCurrency,
+    grossInterest,
+    taxAmount,
+    netInterest,
+    netAnnualRate: annualRate * (1 - taxRate),
+    valid: trade.product === "deposit"
+      && isPositive(trade.notional)
+      && isNonNegative(trade.annualRate)
+      && isNonNegative(trade.taxRate)
+      && isPositive(trade.dayCount),
+  };
+}
+
+export function resolveLinkedNotionals(trades: PortfolioTrade[]) {
+  const byId = new Map(trades.map((trade) => [trade.id, trade]));
+  return trades.map((trade) => {
+    if (trade.product !== "forward" || !trade.notionalSourceTradeId) return trade;
+    const source = byId.get(trade.notionalSourceTradeId);
+    if (!source || source.product !== "deposit") {
+      return { ...trade, notional: Number.NaN };
+    }
+    const interest = calculateDepositInterest(source);
+    return {
+      ...trade,
+      notional: interest.valid ? interest.netInterest : Number.NaN,
+      notionalCurrency: source.notionalCurrency,
+    };
+  });
 }
 
 export function usdNotional(trade: PortfolioTrade) {
@@ -282,12 +325,10 @@ export function calculateTradeReferenceProfitCny(
     return direction * (trade.contractRate - trade.nearRate) * usdNotional(trade);
   }
   if (trade.product === "deposit") {
-    const rate = Math.max(0, trade.annualRate);
-    const tax = Math.min(1, Math.max(0, trade.taxRate));
-    const netYield = rate * (1 - tax) * trade.dayCount / 360;
+    const interest = calculateDepositInterest(trade);
     return trade.notionalCurrency === "CNY"
-      ? trade.notional * netYield
-      : trade.notional * netYield * safePositive(maturitySpot, context.referenceSpot);
+      ? interest.netInterest
+      : interest.netInterest * safePositive(maturitySpot, context.referenceSpot);
   }
   return calculateTradePayoffCny(trade, maturitySpot, context);
 }
