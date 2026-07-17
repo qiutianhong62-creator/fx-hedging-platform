@@ -53,8 +53,10 @@ export default function Home() {
   const [scenarioMax, setScenarioMax] = useState(7.1);
 
   const normalized = useMemo(() => {
-    const minimum = Math.min(scenarioMin, scenarioMax - 0.01);
-    const maximum = Math.max(scenarioMax, minimum + 0.01);
+    const safeMinimum = safeNumber(scenarioMin, 6.4);
+    const safeMaximum = safeNumber(scenarioMax, 7.1);
+    const minimum = Math.min(safeMinimum, safeMaximum - 0.01);
+    const maximum = Math.max(safeMaximum, minimum + 0.01);
     return {
       exposureUsd: Math.max(0, safeNumber(exposureUsd, 0)),
       hedgeRatio: Math.min(1, Math.max(0, safeNumber(hedgePercent, 0) / 100)),
@@ -196,8 +198,8 @@ export default function Home() {
                 type="number"
                 min="0"
                 step="10000"
-                value={exposureUsd}
-                onChange={(event) => setExposureUsd(Number(event.target.value))}
+                value={Number.isFinite(exposureUsd) ? exposureUsd : ""}
+                onChange={(event) => setExposureUsd(event.target.value === "" ? Number.NaN : Number(event.target.value))}
               />
               <small>USD</small>
             </div>
@@ -211,8 +213,8 @@ export default function Home() {
                 type="number"
                 min="0.0001"
                 step="0.0001"
-                value={forwardRate}
-                onChange={(event) => setForwardRate(Number(event.target.value))}
+                value={Number.isFinite(forwardRate) ? forwardRate : ""}
+                onChange={(event) => setForwardRate(event.target.value === "" ? Number.NaN : Number(event.target.value))}
               />
               <small>CNY / USD</small>
             </div>
@@ -262,8 +264,8 @@ export default function Home() {
                 min={normalized.minimum}
                 max={normalized.maximum}
                 step="0.01"
-                value={maturitySpot}
-                onChange={(event) => setMaturitySpot(Number(event.target.value))}
+                value={Number.isFinite(maturitySpot) ? maturitySpot : ""}
+                onChange={(event) => setMaturitySpot(event.target.value === "" ? Number.NaN : Number(event.target.value))}
               />
               <small>CNY / USD</small>
             </div>
@@ -278,8 +280,8 @@ export default function Home() {
                   aria-label="情景最低汇率"
                   type="number"
                   step="0.05"
-                  value={scenarioMin}
-                  onChange={(event) => setScenarioMin(Number(event.target.value))}
+                  value={Number.isFinite(scenarioMin) ? scenarioMin : ""}
+                  onChange={(event) => setScenarioMin(event.target.value === "" ? Number.NaN : Number(event.target.value))}
                 />
               </label>
               <label>
@@ -288,8 +290,8 @@ export default function Home() {
                   aria-label="情景最高汇率"
                   type="number"
                   step="0.05"
-                  value={scenarioMax}
-                  onChange={(event) => setScenarioMax(Number(event.target.value))}
+                  value={Number.isFinite(scenarioMax) ? scenarioMax : ""}
+                  onChange={(event) => setScenarioMax(event.target.value === "" ? Number.NaN : Number(event.target.value))}
                 />
               </label>
             </div>

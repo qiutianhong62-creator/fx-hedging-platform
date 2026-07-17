@@ -9,6 +9,7 @@ export type OptionPosition = "buy" | "sell";
 export type PortfolioTrade = {
   id: string;
   name: string;
+  nameManuallyEdited: boolean;
   enabled: boolean;
   product: TradeProduct;
   nearDate: string;
@@ -49,7 +50,8 @@ export const productColors: Record<TradeProduct, string> = {
 export const defaultPortfolioTrades: PortfolioTrade[] = [
   {
     id: "trade-forward-example",
-    name: "1万元人民币远期购汇",
+    name: "远期1",
+    nameManuallyEdited: false,
     enabled: true,
     product: "forward",
     nearDate: "2026-07-17",
@@ -69,7 +71,8 @@ export const defaultPortfolioTrades: PortfolioTrade[] = [
   },
   {
     id: "trade-option-example",
-    name: "卖出1万元名义金额看涨期权",
+    name: "期权1",
+    nameManuallyEdited: false,
     enabled: true,
     product: "option",
     nearDate: "2026-07-17",
@@ -94,6 +97,7 @@ export function createPortfolioTrade(product: TradeProduct, id: string, maturity
   return {
     id,
     name: `新增${label}交易`,
+    nameManuallyEdited: false,
     enabled: true,
     product,
     nearDate: "2026-07-17",
@@ -117,8 +121,33 @@ function safePositive(value: number, fallback: number) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+function isPositive(value: number) {
+  return Number.isFinite(value) && value > 0;
+}
+
+function isNonNegative(value: number) {
+  return Number.isFinite(value) && value >= 0;
+}
+
+export function normalizeAutomaticTradeNames(trades: PortfolioTrade[]) {
+  const counts: Record<TradeProduct, number> = { forward: 0, option: 0, swap: 0, deposit: 0 };
+  return trades.map((trade) => {
+    counts[trade.product] += 1;
+    if (trade.nameManuallyEdited) return trade;
+    return { ...trade, name: `${productLabels[trade.product]}${counts[trade.product]}` };
+  });
+}
+
+export function differenceInDays(startDate: string, endDate: string) {
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  return Math.max(0, Math.round((end - start) / 86_400_000));
+}
+
 export function usdNotional(trade: PortfolioTrade) {
-  if (trade.notionalCurrency === "USD") return Math.max(0, trade.notional);
+  if (!isPositive(trade.notional)) return 0;
+  if (trade.notionalCurrency === "USD") return trade.notional;
   const conversionRate = trade.product === "option"
     ? trade.strike
     : trade.product === "swap"
@@ -127,9 +156,59 @@ export function usdNotional(trade: PortfolioTrade) {
   return Math.max(0, trade.notional) / safePositive(conversionRate, 1);
 }
 
+export function cnyEquivalentNotional(trade: PortfolioTrade, context: PortfolioContext) {
+  if (!isPositive(trade.notional)) return 0;
+  return trade.notionalCurrency === "CNY"
+    ? trade.notional
+    : trade.notional * safePositive(context.referenceSpot, 0);
+}
+
+export function tradeHasRequiredInputs(trade: PortfolioTrade) {
+  if (!isPositive(trade.notional)) return false;
+  if (trade.product === "forward") return isPositive(trade.contractRate);
+  if (trade.product === "swap") {
+    return isPositive(trade.nearRate)
+      && isPositive(trade.contractRate)
+      && differenceInDays(trade.nearDate, trade.maturityDate) > 0;
+  }
+  if (trade.product === "option") {
+    return isPositive(trade.strike) && isNonNegative(trade.premium);
+  }
+  return isNonNegative(trade.annualRate)
+    && isNonNegative(trade.taxRate)
+    && isPositive(trade.dayCount);
+}
+
 export function tradeMatchesAnalysis(trade: PortfolioTrade, context: PortfolioContext) {
-  const validSwapDates = trade.product !== "swap" || trade.nearDate < trade.maturityDate;
-  return trade.enabled && validSwapDates && trade.maturityDate === context.analysisDate;
+  return trade.enabled
+    && tradeHasRequiredInputs(trade)
+    && trade.maturityDate === context.analysisDate;
+}
+
+export function calculateSwapQuote(trade: PortfolioTrade) {
+  const nearValid = isPositive(trade.notional) && isPositive(trade.nearRate);
+  const farRateValid = isPositive(trade.contractRate);
+  const amountUsd = usdNotional(trade);
+  const nearRate = safePositive(trade.nearRate, 0);
+  const farRate = safePositive(trade.contractRate, 0);
+  const tenorDays = differenceInDays(trade.nearDate, trade.maturityDate);
+  const dateValid = tenorDays > 0;
+  const direction = trade.direction === "buyUsd" ? 1 : -1;
+  const annualizedReturn = nearRate > 0 && tenorDays > 0
+    ? direction * ((farRate - nearRate) / nearRate) * (360 / tenorDays)
+    : Number.NaN;
+  return {
+    amountUsd,
+    nearCny: amountUsd * nearRate,
+    farCny: amountUsd * farRate,
+    swapPoints: (farRate - nearRate) * 10_000,
+    tenorDays,
+    annualizedReturn,
+    nearValid,
+    farRateValid,
+    dateValid,
+    valid: trade.product === "swap" && nearValid && farRateValid && dateValid,
+  };
 }
 
 export function calculateTradePayoffCny(
@@ -192,6 +271,38 @@ export function calculatePortfolioPayoffCny(
   );
 }
 
+export function calculateTradeReferenceProfitCny(
+  trade: PortfolioTrade,
+  maturitySpot: number,
+  context: PortfolioContext,
+) {
+  if (!tradeMatchesAnalysis(trade, context)) return 0;
+  if (trade.product === "swap") {
+    const direction = trade.direction === "buyUsd" ? 1 : -1;
+    return direction * (trade.contractRate - trade.nearRate) * usdNotional(trade);
+  }
+  if (trade.product === "deposit") {
+    const rate = Math.max(0, trade.annualRate);
+    const tax = Math.min(1, Math.max(0, trade.taxRate));
+    const netYield = rate * (1 - tax) * trade.dayCount / 360;
+    return trade.notionalCurrency === "CNY"
+      ? trade.notional * netYield
+      : trade.notional * netYield * safePositive(maturitySpot, context.referenceSpot);
+  }
+  return calculateTradePayoffCny(trade, maturitySpot, context);
+}
+
+export function calculatePortfolioReferenceProfitCny(
+  trades: PortfolioTrade[],
+  maturitySpot: number,
+  context: PortfolioContext,
+) {
+  return trades.reduce(
+    (total, trade) => total + calculateTradeReferenceProfitCny(trade, maturitySpot, context),
+    0,
+  );
+}
+
 export function buildPortfolioScenarios(
   trades: PortfolioTrade[],
   context: PortfolioContext,
@@ -208,16 +319,19 @@ export function buildPortfolioScenarios(
 }
 
 export function tradeDescription(trade: PortfolioTrade) {
+  const formatRate = (value: number) => isPositive(value) ? value.toFixed(4) : "待输入";
   if (trade.product === "forward") {
-    return `${trade.direction === "buyUsd" ? "远期购汇" : "远期结汇"} · 锁定价 ${trade.contractRate.toFixed(4)}`;
+    return `${trade.direction === "buyUsd" ? "远期购汇" : "远期结汇"} · 锁定价 ${formatRate(trade.contractRate)}`;
   }
   if (trade.product === "swap") {
     const near = trade.direction === "buyUsd" ? "近端购汇" : "近端结汇";
     const far = trade.direction === "buyUsd" ? "远端结汇" : "远端购汇";
-    return `${near} ${trade.nearRate.toFixed(4)} → ${far} ${trade.contractRate.toFixed(4)}`;
+    return `${near} ${formatRate(trade.nearRate)} → ${far} ${formatRate(trade.contractRate)}`;
   }
   if (trade.product === "option") {
-    return `${trade.optionPosition === "buy" ? "买入" : "卖出"}${trade.optionKind === "call" ? "看涨" : "看跌"} · 执行价 ${trade.strike.toFixed(4)}`;
+    return `${trade.optionPosition === "buy" ? "买入" : "卖出"}${trade.optionKind === "call" ? "看涨" : "看跌"} · 执行价 ${formatRate(trade.strike)}`;
   }
-  return `${trade.notionalCurrency} 定存 · 税后年化 ${(trade.annualRate * (1 - trade.taxRate) * 100).toFixed(2)}%`;
+  const annualRate = Number.isFinite(trade.annualRate) ? trade.annualRate : 0;
+  const taxRate = Number.isFinite(trade.taxRate) ? trade.taxRate : 0;
+  return `${trade.notionalCurrency} 定存 · 税后年化 ${(annualRate * (1 - taxRate) * 100).toFixed(2)}%`;
 }
