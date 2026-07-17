@@ -141,7 +141,7 @@ export function StrategyComparisonChart({ series, selectedSpot }: Props) {
     <div className="comparison-canvas-wrap">
       <canvas
         ref={canvasRef}
-        aria-label="不套保、50%、80%、100%与自定义组合策略的人民币收入情景对比折线图"
+        aria-label="多个自定义外汇策略的人民币收入情景对比折线图"
         role="img"
       />
     </div>

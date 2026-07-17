@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "面向出口企业的多产品组合套保、收益曲线与风险情景分析平台。",
   openGraph: {
     title: "企业外汇套保与风险分析平台",
-    description: "比较不套保、50%、80%、100%与自定义组合策略的收入边界和风险。",
+    description: "在同一业务起点下，自由组合远期、掉期、期权和定存，并比较不同汇率情景的人民币结果。",
     type: "website",
     locale: "zh_CN",
     images: [

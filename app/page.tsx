@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { IncomeChart } from "../components/IncomeChart";
+import { MultiStrategyLab } from "../components/MultiStrategyLab";
 import {
   StrategyComparisonChart,
   type ComparisonSeries,
@@ -16,10 +17,10 @@ import {
 } from "../lib/strategies/forward";
 
 const products = [
-  { name: "远期结汇", status: "已接入", active: true },
-  { name: "外汇期权", status: "规划中", active: false },
-  { name: "外汇掉期", status: "规划中", active: false },
-  { name: "货币市场套保", status: "规划中", active: false },
+  { name: "远期结汇", status: "基础模块", active: true, ready: true },
+  { name: "外汇期权", status: "组合区可用", active: false, ready: true },
+  { name: "外汇掉期", status: "组合区可用", active: false, ready: true },
+  { name: "美元定存", status: "组合区可用", active: false, ready: true },
 ];
 
 const strategyColors: Record<string, string> = {
@@ -113,9 +114,7 @@ export default function Home() {
     dashed: item.strategy.id === "custom",
   }));
 
-  const customComparison = strategyComparisons.find(
-    (item) => item.strategy.id === "custom",
-  )!;
+  const customComparison = strategyComparisons.find((item) => item.strategy.id === "custom")!;
   const mostStable = strategyComparisons.reduce((best, item) =>
     item.incomeRangeCny < best.incomeRangeCny ? item : best,
   );
@@ -141,11 +140,12 @@ export default function Home() {
 
       <section className="hero" id="top">
         <div>
-          <p className="eyebrow">远期结汇 · 交互式情景分析</p>
+          <p className="eyebrow">远期 · 掉期 · 期权 · 定存</p>
           <h1>把汇率风险，变成一条看得懂的收益曲线。</h1>
           <p className="hero-copy">
-            输入美元敞口、远期汇率和任意套保比例，立即比较套保与不套保在不同到期汇率下的人民币收入。
+            先用基础远期模型理解套保，再把多个自定义组合放进同一张图，比较不同到期汇率下的人民币结果。
           </p>
+          <a className="hero-cta" href="#multi-strategy">进入多策略组合实验室 <span>↓</span></a>
         </div>
         <div className="hero-stat">
           <span>当前官方即期参考价</span>
@@ -249,7 +249,7 @@ export default function Home() {
               <strong>{Math.round((1 - normalized.hedgeRatio) * 100)}%</strong>
             </div>
             <div className="future-leg-row" aria-label="未来可加入的策略产品">
-              <span>＋ 期权</span><span>＋ 期货</span><span>＋ 掉期</span>
+              <span>＋ 期权</span><span>＋ 掉期</span><span>＋ 定存</span>
             </div>
           </div>
 
@@ -360,7 +360,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="comparison-section" id="strategy-comparison">
+      <MultiStrategyLab />
+
+      <section className="comparison-section" id="strategy-comparison" hidden aria-hidden="true">
         <div className="comparison-header">
           <div>
             <p className="eyebrow">组合策略对比</p>
@@ -482,7 +484,7 @@ export default function Home() {
           <p className="eyebrow">计算逻辑</p>
           <h2>一个可审计、可扩展的产品计算框架</h2>
           <p>
-            每个策略先拆分为多个产品组成项，分别计算名义金额、现金流、前期成本和到期收益，再汇总未套保部分。当前远期产品仍按照“锁定部分 × 远期汇率”计算。
+            每个策略先拆分为定存、掉期远端、远期结算、到期即期和期权叠加，分别计算美元名义金额、税后利息与到期现金流，再汇总为可比较的人民币结果。
           </p>
         </div>
         <div className="formula-card">
@@ -495,17 +497,17 @@ export default function Home() {
         <div className="roadmap-heading">
           <div>
             <p className="eyebrow">产品路线图</p>
-            <h2>从单一远期，到多产品套保平台</h2>
+            <h2>四类产品已经进入同一个策略框架</h2>
           </div>
           <p>产品模块相互独立，后续接入新策略时无需重写整个系统。</p>
         </div>
         <div className="roadmap-grid">
           {products.map((product, index) => (
-            <article className={product.active ? "ready" : ""} key={product.name}>
+            <article className={product.ready ? "ready" : ""} key={product.name}>
               <span>0{index + 1}</span>
               <h3>{product.name}</h3>
-              <p>{product.active ? "线性收益、比例自定义、情景曲线" : index === 1 ? "执行价、期权费与非线性收益" : index === 2 ? "近端与远端双向现金流" : "利率、资金成本与机会成本"}</p>
-              <small>{product.status}</small>
+              <p>{index === 0 ? "结汇比例、远期汇率与开放敞口" : index === 1 ? "四类头寸、执行价、期权费与领式组合" : index === 2 ? "近端换汇与远端锁汇现金流" : "利率、税后收益与实际期限"}</p>
+              <small>已接入组合实验室</small>
             </article>
           ))}
         </div>
