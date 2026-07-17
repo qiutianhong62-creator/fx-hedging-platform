@@ -35,15 +35,17 @@ test("server-renders the Chinese hedge analysis platform", async () => {
   assert.match(html, /预计人民币收入/);
   assert.match(html, /到期汇率对人民币收入的影响/);
   assert.match(html, /不套保/);
-  assert.match(html, /多产品组合实验室/);
-  assert.match(html, /把你的三个策略，放进同一张收益图/);
-  assert.match(html, /美元定存后全部开放/);
-  assert.match(html, /掉期＋定存锁汇/);
-  assert.match(html, /定存＋领式期权/);
-  assert.match(html, /领式可用/);
-  assert.match(html, /期权头寸/);
-  assert.match(html, /同一起点下的多策略到期人民币结果/);
-  assert.match(html, /四类产品已经进入同一个策略框架/);
+  assert.match(html, /自由交易搭建器/);
+  assert.match(html, /你来选择每一笔交易/);
+  assert.match(html, /1万元人民币远期购汇/);
+  assert.match(html, /卖出1万元名义金额看涨期权/);
+  assert.match(html, /你的交易清单/);
+  assert.match(html, /组合损益 = Σ 每笔交易损益/);
+  assert.match(html, /自选产品组合的到期损益曲线/);
+  assert.match(html, /＋(?:<!-- -->)?远期/);
+  assert.match(html, /＋(?:<!-- -->)?期权/);
+  assert.match(html, /＋(?:<!-- -->)?掉期/);
+  assert.match(html, /＋(?:<!-- -->)?定存/);
 });
 
 test("serves a compact content security policy", async () => {

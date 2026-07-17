@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { IncomeChart } from "../components/IncomeChart";
-import { MultiStrategyLab } from "../components/MultiStrategyLab";
+import { TradePortfolioLab } from "../components/TradePortfolioLab";
 import {
   StrategyComparisonChart,
   type ComparisonSeries,
@@ -143,9 +143,9 @@ export default function Home() {
           <p className="eyebrow">远期 · 掉期 · 期权 · 定存</p>
           <h1>把汇率风险，变成一条看得懂的收益曲线。</h1>
           <p className="hero-copy">
-            先用基础远期模型理解套保，再把多个自定义组合放进同一张图，比较不同到期汇率下的人民币结果。
+            先用基础远期模型理解套保，再逐笔添加你自己的远期、期权、掉期和定存交易，由网站合并生成一条组合损益曲线。
           </p>
-          <a className="hero-cta" href="#multi-strategy">进入多策略组合实验室 <span>↓</span></a>
+          <a className="hero-cta" href="#trade-builder">进入自由交易搭建器 <span>↓</span></a>
         </div>
         <div className="hero-stat">
           <span>当前官方即期参考价</span>
@@ -360,7 +360,7 @@ export default function Home() {
         </div>
       </section>
 
-      <MultiStrategyLab />
+      <TradePortfolioLab />
 
       <section className="comparison-section" id="strategy-comparison" hidden aria-hidden="true">
         <div className="comparison-header">

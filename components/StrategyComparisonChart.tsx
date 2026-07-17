@@ -15,9 +15,16 @@ export type ComparisonSeries = {
 type Props = {
   series: ComparisonSeries[];
   selectedSpot: number;
+  yAxisLabel?: string;
+  ariaLabel?: string;
 };
 
-export function StrategyComparisonChart({ series, selectedSpot }: Props) {
+export function StrategyComparisonChart({
+  series,
+  selectedSpot,
+  yAxisLabel = "人民币收入（万元）",
+  ariaLabel = "多个自定义外汇策略的人民币收入情景对比折线图",
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -123,7 +130,7 @@ export function StrategyComparisonChart({ series, selectedSpot }: Props) {
       context.rotate(-Math.PI / 2);
       context.fillStyle = "#53645f";
       context.textAlign = "center";
-      context.fillText("人民币收入（万元）", 0, 0);
+      context.fillText(yAxisLabel, 0, 0);
       context.restore();
 
       context.fillStyle = "#53645f";
@@ -135,13 +142,13 @@ export function StrategyComparisonChart({ series, selectedSpot }: Props) {
     const observer = new ResizeObserver(render);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [selectedSpot, series]);
+  }, [selectedSpot, series, yAxisLabel]);
 
   return (
     <div className="comparison-canvas-wrap">
       <canvas
         ref={canvasRef}
-        aria-label="多个自定义外汇策略的人民币收入情景对比折线图"
+        aria-label={ariaLabel}
         role="img"
       />
     </div>
