@@ -2,6 +2,7 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from backend.forecast.errors import ForecastError
 from backend.market.errors import MarketDataError
 from backend.services.distributions import ProbabilityCalculationError
 
@@ -72,6 +73,16 @@ async def probability_calculation_exception_handler(
 async def market_data_exception_handler(
     _: Request,
     exc: MarketDataError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": exc.code, "message": exc.message}},
+    )
+
+
+async def forecast_exception_handler(
+    _: Request,
+    exc: ForecastError,
 ) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
