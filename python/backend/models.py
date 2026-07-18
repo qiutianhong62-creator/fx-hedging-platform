@@ -69,3 +69,54 @@ class NoHedgeScenarioResponse(BaseModel):
     result_kind: ResultKind
     no_hedge_amount_cny: float
     target_comparison: TargetComparison | None
+
+
+class NoHedgeProbabilityRequest(AnalysisInput):
+    assumed_expected_maturity_spot: Annotated[
+        float,
+        Field(gt=0, allow_inf_nan=False),
+    ]
+    assumed_annualized_volatility_pct: Annotated[
+        float,
+        Field(gt=0, allow_inf_nan=False),
+    ]
+
+
+class DistributionMetadata(BaseModel):
+    model_type: Literal["lognormal"] = "lognormal"
+    source_type: Literal["assumption"] = "assumption"
+    is_market_forecast: Literal[False] = False
+    assumed_expected_maturity_spot: float
+    assumed_annualized_volatility_pct: float
+    horizon_days: int
+
+
+class ExpectedResult(BaseModel):
+    spot: float
+    amount_cny: float
+
+
+class ProbabilityRange(BaseModel):
+    probability: float
+    lower_spot: float
+    upper_spot: float
+    lower_amount_cny: float
+    upper_amount_cny: float
+
+
+class TargetProbability(BaseModel):
+    target_cny: float
+    critical_spot: float
+    probability_met: float
+    probability_missed: float
+
+
+class NoHedgeProbabilityResponse(BaseModel):
+    status: Literal["calculated"] = "calculated"
+    quote_convention: Literal["CNY per 1 USD"] = "CNY per 1 USD"
+    distribution: DistributionMetadata
+    result_kind: ResultKind
+    expected_result: ExpectedResult
+    typical_range_50: ProbabilityRange
+    wide_range_90: ProbabilityRange
+    target_probability: TargetProbability | None
