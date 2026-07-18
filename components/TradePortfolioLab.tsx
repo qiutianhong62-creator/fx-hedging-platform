@@ -240,7 +240,6 @@ export function TradePortfolioLab() {
             <div><input type="date" value={analysisDate} onChange={(event) => setAnalysisDate(event.target.value)} /></div>
           </label>
           <NumberField label="参考即期汇率" value={referenceSpot} onChange={setReferenceSpot} />
-          <NumberField label="当前观察汇率" value={selectedSpot} onChange={setSelectedSpot} />
           <NumberField label="情景下限" value={scenarioMin} onChange={setScenarioMin} />
           <NumberField label="情景上限" value={scenarioMax} onChange={setScenarioMax} />
         </div>
@@ -552,9 +551,53 @@ export function TradePortfolioLab() {
             {series.map((item) => <span key={item.id}><i style={{ backgroundColor: item.color }} />{item.label}</span>)}
           </div>
         </div>
+        <div className="portfolio-spot-controller">
+          <div className="spot-slider-block">
+            <div className="spot-slider-heading">
+              <label htmlFor="portfolio-spot-slider">拖动选择到期汇率</label>
+              <strong>{selected.toFixed(4)}</strong>
+            </div>
+            <input
+              id="portfolio-spot-slider"
+              type="range"
+              min={minimum}
+              max={maximum}
+              step={0.0001}
+              value={selected}
+              onChange={(event) => setSelectedSpot(Number(event.target.value))}
+              aria-valuetext={`${selected.toFixed(4)} 人民币每美元`}
+            />
+            <div className="spot-slider-ends" aria-hidden="true">
+              <span>{minimum.toFixed(4)}</span>
+              <span>{maximum.toFixed(4)}</span>
+            </div>
+          </div>
+          <label className="spot-manual-field">
+            <span>手动输入汇率</span>
+            <div>
+              <input
+                type="number"
+                min={minimum}
+                max={maximum}
+                step={0.0001}
+                value={Number.isFinite(selectedSpot) ? selectedSpot : ""}
+                onChange={(event) => setSelectedSpot(event.target.value === "" ? Number.NaN : Number(event.target.value))}
+                onBlur={() => setSelectedSpot(selected)}
+                inputMode="decimal"
+              />
+              <small>CNY / USD</small>
+            </div>
+          </label>
+          <div className={`spot-live-result ${totalPayoff >= 0 ? "gain" : "loss"}`} aria-live="polite">
+            <span>该汇率下组合损益</span>
+            <strong>{signedMoney(totalPayoff)}</strong>
+          </div>
+        </div>
+        <p className="chart-drag-hint">也可以直接在图中按住鼠标左右拖动竖线，下面的每笔交易和组合损益会同步变化。</p>
         <StrategyComparisonChart
           series={series}
           selectedSpot={selected}
+          onSelectedSpotChange={setSelectedSpot}
           yAxisLabel="组合到期损益（万元）"
           ariaLabel="用户自由选择的多笔外汇交易组合到期损益曲线"
         />

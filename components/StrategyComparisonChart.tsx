@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import type { CompositeScenarioPoint } from "../lib/strategies/types";
 
 export type ComparisonSeries = {
@@ -15,17 +15,37 @@ export type ComparisonSeries = {
 type Props = {
   series: ComparisonSeries[];
   selectedSpot: number;
+  onSelectedSpotChange?: (spot: number) => void;
   yAxisLabel?: string;
   ariaLabel?: string;
 };
 
+const chartHeight = 420;
+const chartMargin = { top: 30, right: 32, bottom: 66, left: 82 };
+
 export function StrategyComparisonChart({
   series,
   selectedSpot,
+  onSelectedSpotChange,
   yAxisLabel = "人民币收入（万元）",
   ariaLabel = "多个自定义外汇策略的人民币收入情景对比折线图",
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDragging = useRef(false);
+
+  const updateSpotFromPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!onSelectedSpotChange || series.length === 0 || series[0].points.length < 2) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const spots = series[0].points.map((point) => point.spot);
+    const xMin = Math.min(...spots);
+    const xMax = Math.max(...spots);
+    const plotWidth = Math.max(1, rect.width - chartMargin.left - chartMargin.right);
+    const progress = Math.min(1, Math.max(0, (event.clientX - rect.left - chartMargin.left) / plotWidth));
+    const nextSpot = xMin + progress * (xMax - xMin);
+    onSelectedSpotChange(Math.round(nextSpot * 10_000) / 10_000);
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,7 +54,7 @@ export function StrategyComparisonChart({
     const render = () => {
       const rect = canvas.getBoundingClientRect();
       const width = Math.max(760, rect.width);
-      const height = 390;
+      const height = chartHeight;
       const ratio = window.devicePixelRatio || 1;
       canvas.width = width * ratio;
       canvas.height = height * ratio;
@@ -43,7 +63,7 @@ export function StrategyComparisonChart({
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
 
-      const margin = { top: 25, right: 30, bottom: 58, left: 72 };
+      const margin = chartMargin;
       const plotWidth = width - margin.left - margin.right;
       const plotHeight = height - margin.top - margin.bottom;
       const spots = series[0].points.map((point) => point.spot);
@@ -59,7 +79,7 @@ export function StrategyComparisonChart({
       const y = (value: number) =>
         margin.top + (1 - (value / 10_000 - yMin) / (yMax - yMin)) * plotHeight;
 
-      context.font = '12px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+      context.font = '14px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
       context.lineWidth = 1;
       context.strokeStyle = "#dde5e3";
       context.fillStyle = "#65746f";
@@ -113,12 +133,16 @@ export function StrategyComparisonChart({
       context.restore();
 
       for (const item of series) {
-        const nearest = item.points.reduce((best, point) =>
-          Math.abs(point.spot - selected) < Math.abs(best.spot - selected) ? point : best,
-        );
+        const sortedPoints = [...item.points].sort((a, b) => a.spot - b.spot);
+        const upperIndex = sortedPoints.findIndex((point) => point.spot >= selected);
+        const upper = upperIndex < 0 ? sortedPoints[sortedPoints.length - 1] : sortedPoints[upperIndex];
+        const lower = upperIndex <= 0 ? sortedPoints[0] : sortedPoints[upperIndex - 1];
+        const distance = upper.spot - lower.spot;
+        const progress = distance === 0 ? 0 : (selected - lower.spot) / distance;
+        const selectedIncome = lower.incomeCny + (upper.incomeCny - lower.incomeCny) * progress;
         context.fillStyle = item.color;
         context.beginPath();
-        context.arc(x(nearest.spot), y(nearest.incomeCny), item.emphasized ? 5.5 : 4, 0, Math.PI * 2);
+        context.arc(selectedX, y(selectedIncome), item.emphasized ? 6.5 : 5, 0, Math.PI * 2);
         context.fill();
         context.strokeStyle = "#ffffff";
         context.lineWidth = 2;
@@ -145,11 +169,29 @@ export function StrategyComparisonChart({
   }, [selectedSpot, series, yAxisLabel]);
 
   return (
-    <div className="comparison-canvas-wrap">
+    <div className={`comparison-canvas-wrap ${onSelectedSpotChange ? "interactive" : ""}`}>
       <canvas
         ref={canvasRef}
         aria-label={ariaLabel}
         role="img"
+        onPointerDown={(event) => {
+          if (!onSelectedSpotChange) return;
+          isDragging.current = true;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          updateSpotFromPointer(event);
+        }}
+        onPointerMove={(event) => {
+          if (isDragging.current) updateSpotFromPointer(event);
+        }}
+        onPointerUp={(event) => {
+          isDragging.current = false;
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+        }}
+        onPointerCancel={() => {
+          isDragging.current = false;
+        }}
       />
     </div>
   );

@@ -247,7 +247,8 @@ a { color: inherit; }
 .comparison-legend span.custom { color: var(--ink); font-weight: 800; }
 .comparison-legend span.custom i { background-image: repeating-linear-gradient(90deg, transparent 0 4px, white 4px 7px); }
 .comparison-canvas-wrap { width: 100%; overflow-x: auto; }
-.comparison-canvas-wrap canvas { width: 100%; min-width: 760px; height: 390px; display: block; }
+.comparison-canvas-wrap canvas { width: 100%; min-width: 760px; height: 420px; display: block; }
+.comparison-canvas-wrap.interactive canvas { cursor: ew-resize; touch-action: pan-y; }
 
 .comparison-table-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid var(--line); border-radius: 15px; }
 .comparison-table { width: 100%; min-width: 980px; border-collapse: collapse; background: white; }
@@ -338,7 +339,7 @@ a { color: inherit; }
 .portfolio-scenario-heading small { margin-top: 4px; color: var(--muted); font-size: 9px; }
 .show-legs-toggle { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 750; cursor: pointer; }
 .show-legs-toggle input { accent-color: var(--teal); }
-.portfolio-scenario-grid { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 9px; }
+.portfolio-scenario-grid { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 9px; }
 .portfolio-warning { margin: 12px 0 0; padding: 9px 11px; border-radius: 9px; background: var(--orange-soft); color: #9c4b25; font-size: 9px; }
 
 .trade-field, .trade-select-field, .trade-name-field, .trade-readonly-field { display: block; min-width: 0; }
@@ -428,6 +429,26 @@ a { color: inherit; }
 .portfolio-legend { max-width: 680px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px 12px; color: var(--muted); font-size: 8px; }
 .portfolio-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .portfolio-legend i { width: 15px; height: 3px; border-radius: 99px; }
+.portfolio-spot-controller { display: grid; grid-template-columns: minmax(320px, 1fr) 210px 220px; align-items: end; gap: 16px; margin: 8px 3px 0; padding: 16px 18px; border: 1px solid #d5e4e0; border-radius: 14px; background: linear-gradient(145deg, #f3f8f6, #fbfdfc); }
+.spot-slider-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 9px; }
+.spot-slider-heading label, .spot-manual-field > span, .spot-live-result span { color: var(--muted); font-size: 12px; font-weight: 750; }
+.spot-slider-heading strong { color: var(--navy); font-size: 19px; font-variant-numeric: tabular-nums; }
+.spot-slider-block > input[type="range"] { width: 100%; height: 6px; margin: 8px 0; appearance: none; border-radius: 99px; outline: 0; background: linear-gradient(90deg, var(--teal), #8bc8bf); accent-color: var(--teal); cursor: ew-resize; }
+.spot-slider-block > input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; appearance: none; border: 4px solid white; border-radius: 50%; background: var(--teal); box-shadow: 0 2px 8px rgba(8,127,115,.32); }
+.spot-slider-block > input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 4px solid white; border-radius: 50%; background: var(--teal); box-shadow: 0 2px 8px rgba(8,127,115,.32); }
+.spot-slider-block > input[type="range"]:focus-visible { box-shadow: 0 0 0 4px rgba(8,127,115,.14); }
+.spot-slider-ends { display: flex; justify-content: space-between; color: #82918d; font-size: 11px; font-variant-numeric: tabular-nums; }
+.spot-manual-field { display: block; min-width: 0; }
+.spot-manual-field > span { display: block; margin-bottom: 8px; }
+.spot-manual-field > div { height: 45px; display: flex; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.spot-manual-field > div:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(8,127,115,.09); }
+.spot-manual-field input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.spot-manual-field small { flex: 0 0 auto; color: #82918d; font-size: 11px; }
+.spot-live-result { min-height: 68px; display: flex; flex-direction: column; justify-content: center; padding: 11px 14px; border-radius: 11px; background: white; text-align: right; }
+.spot-live-result strong { display: block; margin-top: 4px; font-size: 20px; font-variant-numeric: tabular-nums; }
+.spot-live-result.gain strong { color: var(--teal-dark); }
+.spot-live-result.loss strong { color: #a94d21; }
+.chart-drag-hint { margin: 10px 5px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .portfolio-method-note { margin-top: 14px; padding: 16px 18px; border-radius: 13px; background: #f0f5f3; }
 .portfolio-method-note strong { font-size: 11px; }
 .portfolio-method-note p { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
@@ -470,6 +491,46 @@ footer strong, footer span { display: block; }
 footer strong { color: var(--ink); font-size: 11px; }
 footer span { margin-top: 4px; }
 
+/* Readability pass: keep the analytical density while avoiding tiny labels. */
+.brand strong { font-size: 17px; }
+.brand small, .hero-stat small { font-size: 12px; }
+.market-pill, .hero-stat span { font-size: 14px; }
+.hero-cta { font-size: 13px; }
+.section-heading h2, .chart-heading h3 { font-size: 18px; }
+.product span { font-size: 15px; }
+.product small, .field > span, .label-row span, .input-shell small, .range-ends, .scenario-settings summary, .scenario-grid label { font-size: 12px; }
+.input-shell input, .scenario-grid input { font-size: 14px; }
+.composition-title span, .composition-title small, .strategy-leg span, .strategy-leg strong, .future-leg-row span { font-size: 12px; }
+.signal span, .kpi span, .kpi small, .chart-heading p, .legend, .explanation p { font-size: 13px; }
+.comparison-header > div:first-child > p:last-child { font-size: 14px; }
+.architecture-badge span { font-size: 13px; }
+.architecture-badge small, .comparison-kpis span, .comparison-kpis small, .comparison-legend { font-size: 12px; }
+.comparison-table th, .comparison-table td, .comparison-table thead th { font-size: 12px; }
+.table-strategy-name { font-size: 13px; }
+.comparison-table th small, .decision-explanation span, .decision-explanation p { font-size: 11px; }
+.portfolio-scenario-heading strong { font-size: 15px; }
+.portfolio-scenario-heading small, .show-legs-toggle, .portfolio-warning, .portfolio-rule { font-size: 12px; }
+.trade-field > span, .trade-select-field > span, .trade-name-field > span, .trade-readonly-field > span, .trade-name-label > span { font-size: 12px; }
+.trade-field input, .trade-select-field select, .trade-readonly-field > div { font-size: 14px; }
+.trade-field small, .trade-name-label button { font-size: 11px; }
+.trade-name-field input { font-size: 15px; }
+.trade-list-heading span, .trade-number, .trade-card-actions label, .trade-card-actions button, .add-trade-buttons button { font-size: 12px; }
+.trade-list-heading strong { font-size: 16px; }
+.trade-card-footer > div:first-child span, .trade-card-footer > div:first-child small, .trade-payoff span { font-size: 12px; }
+.trade-payoff strong { font-size: 17px; }
+.swap-auto-heading strong, .deposit-auto-grid strong, .linked-source-note strong { font-size: 13px; }
+.swap-auto-heading small, .swap-auto-grid span, .deposit-auto-grid span, .linked-source-note span { font-size: 11px; }
+.swap-auto-grid strong { font-size: 12px; }
+.portfolio-result span { font-size: 12px; }
+.portfolio-result strong { font-size: 23px; }
+.portfolio-result small, .portfolio-return-note p, .portfolio-legend { font-size: 12px; }
+.portfolio-return-note strong, .portfolio-method-note strong { font-size: 13px; }
+.portfolio-method-note p, .method-copy > p:last-child, .roadmap-heading > p, .roadmap-grid p, .source-grid span, .source-grid a, .source-grid small, .source-grid p, footer { font-size: 13px; }
+.roadmap-grid article > span, .roadmap-grid small { font-size: 12px; }
+.roadmap-grid h3 { font-size: 18px; }
+.source-grid strong { font-size: 24px; }
+footer strong { font-size: 14px; }
+
 @media (max-width: 1050px) {
   .workspace { grid-template-columns: 1fr; }
   .control-panel { position: static; }
@@ -481,6 +542,8 @@ footer span { margin-top: 4px; }
   .scheme-grid { grid-template-columns: 1fr; }
   .option-editor { grid-template-columns: auto 1fr 1fr; }
   .portfolio-scenario-grid { grid-template-columns: repeat(3, 1fr); }
+  .portfolio-spot-controller { grid-template-columns: minmax(260px, 1fr) 190px; }
+  .spot-live-result { grid-column: 1 / -1; text-align: left; }
   .trade-input-grid { grid-template-columns: repeat(3, 1fr); }
   .swap-auto-grid { grid-template-columns: 1fr 1fr; }
   .deposit-auto-grid { grid-template-columns: 1fr 1fr; }
@@ -515,6 +578,8 @@ footer span { margin-top: 4px; }
   .swap-auto-grid { grid-template-columns: 1fr; }
   .deposit-auto-grid { grid-template-columns: 1fr; }
   .linked-source-note { align-items: flex-start; flex-direction: column; }
+  .portfolio-spot-controller { grid-template-columns: 1fr; }
+  .spot-live-result { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
