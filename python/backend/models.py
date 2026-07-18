@@ -30,3 +30,42 @@ class ValidationResponse(BaseModel):
     status: Literal["valid"] = "valid"
     quote_convention: Literal["CNY per 1 USD"] = "CNY per 1 USD"
     normalized_input: AnalysisInput
+
+
+class ResultKind(str, Enum):
+    CNY_PROCEEDS = "cny_proceeds"
+    CNY_COST = "cny_cost"
+
+
+class DifferenceType(str, Enum):
+    ON_TARGET = "on_target"
+    SURPLUS = "surplus"
+    SHORTFALL = "shortfall"
+    COST_SAVING = "cost_saving"
+    EXCESS_COST = "excess_cost"
+
+
+class NoHedgeScenarioRequest(AnalysisInput):
+    assumed_maturity_spot: Annotated[float, Field(gt=0)]
+
+
+class ScenarioMetadata(BaseModel):
+    scenario_type: Literal["assumption"] = "assumption"
+    is_forecast: Literal[False] = False
+    assumed_maturity_spot: float
+
+
+class TargetComparison(BaseModel):
+    target_cny: float
+    target_met: bool
+    difference_cny: float
+    difference_type: DifferenceType
+
+
+class NoHedgeScenarioResponse(BaseModel):
+    status: Literal["calculated"] = "calculated"
+    quote_convention: Literal["CNY per 1 USD"] = "CNY per 1 USD"
+    scenario: ScenarioMetadata
+    result_kind: ResultKind
+    no_hedge_amount_cny: float
+    target_comparison: TargetComparison | None
