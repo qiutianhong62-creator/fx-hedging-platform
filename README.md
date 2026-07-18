@@ -50,3 +50,29 @@ python/tests/            Python 单元测试
 ## 后续产品
 
 外汇期权、外汇掉期、货币市场套保、区间远期、参与式远期和多产品组合。
+
+## 第一阶段 Python 后端
+
+创建独立 Python 3.12 环境并安装依赖：
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r python/requirements.txt
+```
+
+启动后端：
+
+```bash
+.venv/bin/python -m uvicorn backend.main:app --app-dir python --reload
+```
+
+启动后可访问：
+
+- 健康检查：`http://127.0.0.1:8000/health`
+- 交互式接口说明：`http://127.0.0.1:8000/docs`
+
+运行全部 Python 测试：
+
+```bash
+PYTHONPATH=python .venv/bin/python -m pytest python/tests -v
+```

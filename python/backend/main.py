@@ -1,4 +1,8 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+
+from backend.errors import validation_exception_handler
+from backend.routes.inputs import router as inputs_router
 
 
 SERVICE_VERSION = "0.1.0"
@@ -10,6 +14,8 @@ def create_app() -> FastAPI:
         description="USD/CNY 外汇敞口与策略风险分析后端",
         version=SERVICE_VERSION,
     )
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.include_router(inputs_router)
 
     @app.get("/health", tags=["system"])
     def health() -> dict[str, str]:
