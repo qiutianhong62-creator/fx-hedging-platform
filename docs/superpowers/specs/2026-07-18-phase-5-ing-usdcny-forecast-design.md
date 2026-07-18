@@ -1,7 +1,7 @@
 # 第五阶段：ING USD/CNY 到期汇率预测设计
 
 > 日期：2026-07-18
-> 状态：待用户审阅书面规格
+> 状态：用户已审阅并批准
 > 项目：`fx-hedging-platform`
 
 ## 1. 阶段目标
@@ -246,6 +246,8 @@ matching_method = interpolated
 - `aggregation_status: single_source_trial`
 - `is_consensus_forecast: false`
 - `sources[0].institution: ING`
+
+`source_count` 只统计机构预测来源。FRED 只是近期插值的市场参考锚点，不是机构预测，因此使用 FRED 锚点时 `source_count` 仍为 1。
 
 未来增加机构时，每家机构仍返回同样的名称、更新日、链接和预测点。多机构权重、分歧范围、可信度和观点理由属于后续阶段，第一版不返回空占位数值。
 
