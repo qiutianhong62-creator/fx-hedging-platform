@@ -76,3 +76,26 @@ python3.12 -m venv .venv
 ```bash
 PYTHONPATH=python .venv/bin/python -m pytest python/tests -v
 ```
+
+### 第二阶段：不套保单一情景
+
+启动后端并打开 `http://127.0.0.1:8000/docs`，展开：
+
+```text
+POST /api/v1/analysis/no-hedge/scenario
+```
+
+点击 `Try it out`，输入：
+
+```json
+{
+  "currency_pair": "USD/CNY",
+  "exposure_type": "usd_receivable",
+  "notional_usd": 1000000,
+  "maturity_date": "2030-12-31",
+  "target_cny": 6800000,
+  "assumed_maturity_spot": 6.75
+}
+```
+
+返回结果应显示不套保金额为 `6750000.0`、未达标、距离目标 `50000.0`，并明确标记该汇率是假设而不是预测。

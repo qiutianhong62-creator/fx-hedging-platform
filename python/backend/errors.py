@@ -9,6 +9,7 @@ FIELD_MESSAGES = {
     "notional_usd": "美元金额必须大于 0",
     "maturity_date": "到期日必须晚于今天",
     "target_cny": "目标人民币金额必须大于 0",
+    "assumed_maturity_spot": "假设到期汇率必须大于 0",
 }
 
 
