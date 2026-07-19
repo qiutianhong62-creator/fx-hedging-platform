@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from backend.models import (
     DistributionMetadata,
@@ -84,6 +85,8 @@ def calculate_no_hedge_probability(
     payload: NoHedgeProbabilityRequest,
     *,
     valuation_date: date | None = None,
+    source_type: Literal["assumption", "market_data"] = "assumption",
+    is_market_forecast: bool = False,
 ) -> NoHedgeProbabilityResponse:
     distribution = build_lognormal_distribution(
         expected_spot=payload.assumed_expected_maturity_spot,
@@ -99,6 +102,8 @@ def calculate_no_hedge_probability(
 
     return NoHedgeProbabilityResponse(
         distribution=DistributionMetadata(
+            source_type=source_type,
+            is_market_forecast=is_market_forecast,
             assumed_expected_maturity_spot=(
                 payload.assumed_expected_maturity_spot
             ),

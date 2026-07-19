@@ -137,3 +137,15 @@ def test_distribution_metadata_marks_inputs_as_assumptions() -> None:
     assert result.distribution.source_type == "assumption"
     assert result.distribution.is_market_forecast is False
     assert result.distribution.horizon_days == 365
+
+
+def test_probability_analysis_can_mark_automatic_market_inputs() -> None:
+    result = calculate_no_hedge_probability(
+        make_payload(),
+        valuation_date=VALUATION_DATE,
+        source_type="market_data",
+        is_market_forecast=True,
+    )
+
+    assert result.distribution.source_type == "market_data"
+    assert result.distribution.is_market_forecast is True

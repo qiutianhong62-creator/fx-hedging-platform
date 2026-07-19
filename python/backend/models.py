@@ -84,8 +84,8 @@ class NoHedgeProbabilityRequest(AnalysisInput):
 
 class DistributionMetadata(BaseModel):
     model_type: Literal["lognormal"] = "lognormal"
-    source_type: Literal["assumption"] = "assumption"
-    is_market_forecast: Literal[False] = False
+    source_type: Literal["assumption", "market_data"] = "assumption"
+    is_market_forecast: bool = False
     assumed_expected_maturity_spot: float
     assumed_annualized_volatility_pct: float
     horizon_days: int
