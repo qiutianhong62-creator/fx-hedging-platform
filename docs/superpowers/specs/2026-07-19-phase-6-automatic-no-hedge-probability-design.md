@@ -1,45 +1,39 @@
-# Phase 6 Automatic No-Hedge Probability Design
+# 第六阶段：不套保概率自动分析设计
 
-## Goal
+## 目标
 
-Add a new automatic no-hedge analysis endpoint. The user supplies only the
-business exposure. The backend obtains the expected USD/CNY maturity spot from
-the Phase 5 ING forecast service and the annualized historical volatility from
-the Phase 4 FRED market-history service, then runs the existing Phase 3
-lognormal probability calculation.
+新增一个“不套保自动分析”接口。用户只需填写自己的外汇敞口，后端自动：
 
-The existing manual probability endpoint remains unchanged. This gives the
-product a dependable manual path for testing and comparison without silently
-substituting assumptions when external data is unavailable.
+- 从第五阶段的 ING 预测服务取得预计到期汇率；
+- 从第四阶段的 FRED 市场数据服务取得历史年化波动率；
+- 把这两个数交给第三阶段已经完成的对数正态分布概率模型。
 
-## Scope
+原有的手动概率接口保持不变，继续用于人工假设、测试和对比。当外部数据不可用时，自动接口不会暗中使用假设数据。
 
-Phase 6 includes:
+## 本阶段包含的内容
 
-- one new automatic probability endpoint for `USD/CNY`;
-- automatic ING expected-maturity-spot lookup for the user's maturity date;
-- automatic FRED one-year historical-volatility lookup;
-- reuse of the existing no-hedge amount, probability-range, and target
-  probability calculations;
-- traceable ING and FRED metadata in the automatic response;
-- stable failures when either external data source is unavailable or invalid;
-- automated tests with injected fake services and no live network calls.
+- 新增一个仅支持 `USD/CNY` 的自动概率分析接口。
+- 根据用户的到期日，自动查询 ING 预计到期汇率。
+- 自动查询 FRED 过去一年的历史波动率。
+- 复用现有的不套保金额、概率区间和目标达标概率计算。
+- 在自动分析结果中返回可追溯的 ING 和 FRED 数据信息。
+- 当任一外部数据无法取得或无效时，返回稳定、明确的错误。
+- 自动化测试只使用模拟服务，不在测试过程中访问真实 ING 或 FRED 网站。
 
-Phase 6 does not include:
+## 本阶段暂不包含的内容
 
-- additional forecasting institutions or institution weighting;
-- implied volatility or a paid forward curve;
-- hedge instruments or portfolio calculations;
-- frontend work;
-- background refresh jobs or a database;
-- automatic fallback to guessed rates, default volatility, or user assumptions.
+- 其他预测机构及多机构加权。
+- 期权隐含波动率或付费远期曲线。
+- 远期、期权等套保工具及组合计算。
+- 前端界面。
+- 后台定时抓取、数据库或调度系统。
+- 在外部数据失败时自动改用猜测汇率、默认波动率或用户假设。
 
-The forecast boundary remains provider-independent so additional institutions
-can be added in a later phase without changing the probability engine.
+预测模块的边界保持独立。以后增加其他机构时，只需扩展预测模块，不需要重写后面的概率计算。
 
-## User Input
+## 用户输入
 
-The new endpoint accepts the existing base exposure fields only:
+新的自动接口只接收基础敞口信息：
 
 ```json
 {
@@ -51,155 +45,137 @@ The new endpoint accepts the existing base exposure fields only:
 }
 ```
 
-`target_cny` remains optional. The automatic request does not accept
-`assumed_expected_maturity_spot` or `assumed_annualized_volatility_pct`.
+`target_cny` 仍然可选。自动接口不要求用户填写：
 
-The existing manual endpoint continues to require both assumption fields and
-keeps its current request and response contract.
+- `assumed_expected_maturity_spot`（假设预计到期汇率）；
+- `assumed_annualized_volatility_pct`（假设年化波动率）。
 
-## API
+原有手动接口仍然需要这两个假设值，它现有的输入和输出格式保持不变。
 
-Add:
+## 接口设计
+
+新增：
 
 ```text
 POST /api/v1/analysis/no-hedge/automatic-probability
 ```
 
-Keep unchanged:
+保持不变：
 
 ```text
 POST /api/v1/analysis/no-hedge/probability
 ```
 
-The automatic response retains the familiar probability results:
+自动分析结果继续返回用户已经熟悉的内容：
 
-- expected spot and expected CNY amount;
-- central 50% spot and amount range;
-- wide 90% spot and amount range;
-- target-met and target-missed probabilities when a target is supplied.
+- 预计到期汇率和预计人民币金额；
+- 50% 常见汇率及金额区间；
+- 90% 较宽汇率及金额区间；
+- 用户填写目标时的达标概率和未达标概率。
 
-It also returns `data_sources` containing the traceable Phase 5 forecast result
-and Phase 4 market-history summary. This includes ING's update date, original
-forecast points, interpolation anchors, FRED's observation date, volatility
-window, retrieval time, and cache status.
+结果中还会新增 `data_sources`（数据来源），其中保留第五阶段的预测结果和第四阶段的市场历史摘要，包括：
 
-The distribution metadata distinguishes the two paths:
+- ING 的更新日期和原始预测点；
+- 用户到期日所使用的插值锚点；
+- FRED 最新实际观测日期；
+- 历史波动率的统计窗口；
+- 数据抓取时间和缓存状态。
 
-```text
-manual endpoint:    source_type = assumption,  is_market_forecast = false
-automatic endpoint: source_type = market_data, is_market_forecast = true
-```
-
-Here `is_market_forecast` describes the expected maturity spot. The response
-must continue to label the FRED volatility as historical rather than a future
-volatility forecast.
-
-## Architecture and Data Flow
+概率模型的来源标记要区分两种情况：
 
 ```text
-Exposure input
-     |
-     v
-AutomaticNoHedgeProbabilityService
-     |------------------------------|
-     v                              v
-MaturityForecastService       MarketHistoryService
-ING expected spot             FRED historical volatility
-     |                              |
-     |------------------------------|
-                    |
-                    v
-       existing probability calculation
-                    |
-                    v
- probability result + ING/FRED provenance
+手动接口：source_type = assumption，is_market_forecast = false
+自动接口：source_type = market_data，is_market_forecast = true
 ```
 
-The route is thin. It validates the request and delegates to a new orchestration
-service. That service:
+这里的 `is_market_forecast` 只描述“预计到期汇率”。FRED 提供的波动率仍必须明确标注为历史波动率，不能说成对未来波动率的预测。
 
-1. requests the maturity-date estimate from `MaturityForecastService`;
-2. requests the history summary from `MarketHistoryService`;
-3. builds the existing internal probability input with the ING expected spot
-   and FRED annualized historical volatility;
-4. uses the forecast response's `valuation_date` as the probability horizon's
-   valuation date;
-5. calls the existing no-hedge probability calculation;
-6. marks the distribution metadata as market-data driven;
-7. attaches both source responses to the automatic result.
+## 后端架构和数据流程
 
-The amount and probability mathematics are not duplicated. Phase 6 only
-orchestrates already tested components and adds accurate provenance metadata.
+```text
+用户敞口输入
+       |
+       v
+不套保概率自动分析服务
+       |--------------------------|
+       v                          v
+ING到期汇率预测服务       FRED市场历史服务
+预计到期汇率                 历史年化波动率
+       |                          |
+       |--------------------------|
+                    |
+                    v
+             现有概率计算器
+                    |
+                    v
+       概率结果 + ING/FRED数据来源
+```
 
-## Models
+接口层只负责验证用户输入，然后把任务交给新的自动分析服务。该服务按以下顺序工作：
 
-Add an automatic request model based on `AnalysisInput` without assumption
-fields.
+1. 向到期汇率预测服务请求用户到期日的预计汇率。
+2. 向市场历史服务请求过去一年的历史波动率。
+3. 用 ING 预计汇率和 FRED 历史年化波动率组成内部概率计算输入。
+4. 使用 ING 预测结果中的 `valuation_date`（分析基准日）计算距离到期日的天数。
+5. 调用现有的不套保概率计算器。
+6. 将概率模型标记为由市场数据驱动。
+7. 把 ING 和 FRED 的来源信息一起放入最终结果。
 
-Widen `DistributionMetadata` so its source fields can accurately represent both
-paths:
+本阶段不复制金额和概率公式，只负责连接已经通过测试的模块，并补充准确的数据来源标记。
+
+## 数据模型调整
+
+新增一个自动分析请求模型，它基于现有的 `AnalysisInput`，不含人工假设字段。
+
+扩展 `DistributionMetadata`（概率分布说明），让它可以准确表示手动和自动两条路径：
 
 ```text
 source_type: assumption | market_data
-is_market_forecast: boolean
+is_market_forecast: true | false
 ```
 
-The manual calculator continues to produce exactly `assumption` and `false`, so
-its serialized response remains unchanged.
+手动计算器继续返回 `assumption` 和 `false`，因此原有手动接口的结果格式不变。
 
-Add an automatic response model that extends the existing probability response
-with:
+新增一个自动分析响应模型，在原概率结果的基础上增加：
 
 ```text
-data_sources.forecast: MaturityForecastResponse
-data_sources.market_history: MarketHistorySummaryResponse
+data_sources.forecast: 到期汇率预测结果
+data_sources.market_history: 市场历史摘要
 ```
 
-The automatic orchestration service returns this specific response type.
+## 失败处理
 
-## Failure Handling
+系统不允许使用猜测或隐藏的默认值继续计算。
 
-No guessed or hidden fallback values are allowed.
+- ING 网络、网页结构、数据新鲜度、缓存或预测期限错误，继续使用现有的预测错误编号和 HTTP 状态码。
+- FRED 网络、数据新鲜度、缓存或数据质量错误，继续使用现有的市场数据错误编号和 HTTP 状态码。
+- 用户敞口输入无效时，继续使用现有的友好验证错误。
+- 概率参数超出可计算范围时，继续使用现有的概率计算错误。
 
-- ING network, structure, freshness, cache, or horizon failures retain the
-  existing stable forecast error codes and HTTP statuses.
-- FRED network, freshness, cache, or data-quality failures retain the existing
-  stable market-data error codes and HTTP statuses.
-- Invalid exposure input retains the existing friendly validation response.
-- Numerically invalid probability parameters retain the existing stable
-  probability-calculation error.
+ING 和 FRED 服务只可使用它们已经批准的缓存规则。自动分析服务不再增加第二套缓存，也不放宽现有的数据新鲜度要求。
 
-The ING and FRED services may use only their already approved cache policies.
-The automatic service does not add a second cache or weaken source freshness
-rules.
+## 测试方案
 
-## Testing
+所有自动化测试都注入模拟的预测服务和市场历史服务，不访问真实 ING 或 FRED 网站。
 
-All automated tests use injected fake forecast and market-history services.
-They never contact ING or FRED.
+测试范围包括：
 
-Tests cover:
+- ING 预计汇率和 FRED 波动率确实进入现有概率模型。
+- ING 预测结果的分析基准日决定概率模型的到期天数。
+- 预计人民币金额和目标概率与现有计算器结果一致。
+- 自动分析结果正确标记为由市场数据驱动。
+- 结果中保留完整的 ING 和 FRED 来源信息。
+- 不填写 `target_cny` 时，仍然不返回目标概率。
+- 预测错误和市场数据错误保持原有的错误格式。
+- 手动接口的输入要求和输出结果完全不变。
+- 完整后端回归测试全部通过。
 
-- ING expected spot and FRED volatility are passed into the existing model;
-- the forecast valuation date controls horizon length;
-- expected CNY amount and target probabilities match the existing calculator;
-- the automatic response marks the distribution as market-data driven;
-- ING and FRED traceability metadata are returned;
-- omitted `target_cny` still returns no target probability;
-- forecast and market-data exceptions pass through unchanged;
-- the manual endpoint retains its exact existing request and response behavior;
-- the full backend regression suite remains green.
-
-After automated tests pass, one manual live call verifies the complete chain:
+自动测试通过后，再执行一次真实联网测试，验证完整链路：
 
 ```text
-ING + FRED -> automatic endpoint -> amount ranges and target probability
+ING + FRED -> 自动分析接口 -> 金额区间和目标概率
 ```
 
-## Success Criteria
+## 完成标准
 
-Phase 6 is complete when a user can submit only an exposure, maturity date, and
-optional target; receive a no-hedge probability analysis driven by current
-approved ING and FRED data; inspect where both inputs came from; and receive a
-clear error rather than a fabricated result when either source cannot provide
-valid data.
+用户只需提交外汇敞口、到期日和可选目标金额，即可获得由当前已批准的 ING 和 FRED 数据驱动的不套保概率分析，并能查看两类输入数据来自哪里。当任一来源无法提供有效数据时，系统必须明确报错，不能伪造分析结果。
