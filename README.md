@@ -99,3 +99,33 @@ POST /api/v1/analysis/no-hedge/scenario
 ```
 
 返回结果应显示不套保金额为 `6750000.0`、未达标、距离目标 `50000.0`，并明确标记该汇率是假设而不是预测。
+
+### 第八阶段：远期策略自动概率比较
+
+启动后端并打开 `http://127.0.0.1:8000/docs`，展开：
+
+```text
+POST /api/v1/analysis/forward-strategy/automatic-probability
+```
+
+输入示例：
+
+```json
+{
+  "currency_pair": "USD/CNY",
+  "exposure_type": "usd_receivable",
+  "notional_usd": 1000000,
+  "maturity_date": "2030-12-31",
+  "target_cny": 6800000,
+  "forward_legs": [
+    {
+      "notional_usd": 500000,
+      "forward_rate": 6.8
+    }
+  ]
+}
+```
+
+用户只输入敞口、到期日、可选目标金额和真实远期报价。系统自动读取当前接入的机构预测与历史波动率，并在同一概率分布下返回不套保和远期策略的预计金额、50%与90%金额范围、目标达标概率、策略更优概率和范围变化。
+
+当前预测仍是单一机构试验，不代表多机构共识，也不构成交易建议。
