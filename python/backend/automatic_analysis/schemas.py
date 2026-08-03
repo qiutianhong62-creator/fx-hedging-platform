@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 from backend.forecast.schemas import MaturityForecastResponse
+from backend.forward_strategy.schemas import ForwardStrategyProbabilityResponse
 from backend.market.schemas import MarketHistorySummaryResponse
 from backend.models import NoHedgeProbabilityResponse
 
@@ -11,4 +12,10 @@ class AutomaticAnalysisDataSources(BaseModel):
 
 
 class AutomaticNoHedgeProbabilityResponse(NoHedgeProbabilityResponse):
+    data_sources: AutomaticAnalysisDataSources
+
+
+class AutomaticForwardStrategyProbabilityResponse(
+    ForwardStrategyProbabilityResponse
+):
     data_sources: AutomaticAnalysisDataSources

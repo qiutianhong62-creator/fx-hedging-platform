@@ -3,9 +3,14 @@ from typing import Protocol
 
 from backend.automatic_analysis.schemas import (
     AutomaticAnalysisDataSources,
+    AutomaticForwardStrategyProbabilityResponse,
     AutomaticNoHedgeProbabilityResponse,
 )
 from backend.forecast.schemas import MaturityForecastResponse
+from backend.forward_strategy.probability import (
+    calculate_forward_strategy_probability,
+)
+from backend.forward_strategy.schemas import ForwardStrategyProbabilityRequest
 from backend.market.schemas import MarketHistorySummaryResponse
 from backend.models import AnalysisInput, NoHedgeProbabilityRequest
 from backend.services.no_hedge_probability import (
@@ -56,6 +61,41 @@ class AutomaticNoHedgeProbabilityService:
             is_market_forecast=True,
         )
         return AutomaticNoHedgeProbabilityResponse(
+            **analysis.model_dump(),
+            data_sources=AutomaticAnalysisDataSources(
+                forecast=forecast,
+                market_history=market_history,
+            ),
+        )
+
+
+class AutomaticForwardStrategyProbabilityService:
+    def __init__(
+        self,
+        *,
+        forecast_service: ForecastLookup,
+        market_history_service: MarketHistoryLookup,
+    ) -> None:
+        self._forecast_service = forecast_service
+        self._market_history_service = market_history_service
+
+    def calculate(
+        self,
+        payload: ForwardStrategyProbabilityRequest,
+    ) -> AutomaticForwardStrategyProbabilityResponse:
+        forecast = self._forecast_service.get_estimate(payload.maturity_date)
+        market_history = self._market_history_service.get_summary()
+        analysis = calculate_forward_strategy_probability(
+            payload,
+            expected_maturity_spot=forecast.expected_maturity_spot,
+            annualized_volatility_pct=(
+                market_history.historical_volatility.annualized_volatility_pct
+            ),
+            valuation_date=forecast.valuation_date,
+            source_type="market_data",
+            is_market_forecast=True,
+        )
+        return AutomaticForwardStrategyProbabilityResponse(
             **analysis.model_dump(),
             data_sources=AutomaticAnalysisDataSources(
                 forecast=forecast,
