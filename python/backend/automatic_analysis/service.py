@@ -18,6 +18,13 @@ from backend.services.no_hedge_probability import (
 )
 
 
+FORWARD_PROBABILITY_LIMITATIONS = [
+    "历史波动率来自过去一年数据，不保证未来波动相同。",
+    "概率结果是模型估算，不代表对未来结果的保证。",
+    "本平台结果仅用于教学和风险分析，不构成交易或套保建议。",
+]
+
+
 class ForecastLookup(Protocol):
     def get_estimate(
         self,
@@ -101,4 +108,5 @@ class AutomaticForwardStrategyProbabilityService:
                 forecast=forecast,
                 market_history=market_history,
             ),
+            limitations=FORWARD_PROBABILITY_LIMITATIONS,
         )

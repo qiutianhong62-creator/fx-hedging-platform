@@ -19,3 +19,4 @@ class AutomaticForwardStrategyProbabilityResponse(
     ForwardStrategyProbabilityResponse
 ):
     data_sources: AutomaticAnalysisDataSources
+    limitations: list[str]

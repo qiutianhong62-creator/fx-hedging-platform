@@ -66,6 +66,10 @@ def test_endpoint_returns_strategy_comparison_without_assumptions() -> None:
         body["data_sources"]["market_history"]["source"]["provider"]
         == "FRED"
     )
+    assert len(body["limitations"]) == 3
+    assert "历史波动率" in body["limitations"][0]
+    assert "模型估算" in body["limitations"][1]
+    assert "不构成交易或套保建议" in body["limitations"][2]
 
 
 def test_endpoint_preserves_forecast_error_contract() -> None:

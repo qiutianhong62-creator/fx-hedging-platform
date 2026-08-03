@@ -95,16 +95,18 @@ def _target_probability(
 ) -> ForwardTargetProbability | None:
     if target_cny is None:
         return None
+    normalized_target = cny_amount(Decimal(str(target_cny)))
     if slope == 0:
+        normalized_amount = cny_amount(Decimal(str(intercept)))
         met = (
-            intercept <= target_cny
+            normalized_amount <= normalized_target
             if exposure_type is ExposureType.USD_PAYABLE
-            else intercept >= target_cny
+            else normalized_amount >= normalized_target
         )
         probability_met = 1.0 if met else 0.0
         critical_spot = None
     else:
-        critical_spot = (target_cny - intercept) / slope
+        critical_spot = (float(normalized_target) - intercept) / slope
         probability_below = distribution.cdf(critical_spot)
         amount_condition_is_below = (
             exposure_type is ExposureType.USD_PAYABLE
@@ -121,7 +123,7 @@ def _target_probability(
         )
     probability_met = min(1.0, max(0.0, probability_met))
     return ForwardTargetProbability(
-        target_cny=target_cny,
+        target_cny=float(normalized_target),
         critical_spot=critical_spot,
         probability_met=probability_met,
         probability_missed=1.0 - probability_met,

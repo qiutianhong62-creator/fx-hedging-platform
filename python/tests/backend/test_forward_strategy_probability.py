@@ -187,11 +187,53 @@ def test_full_hedge_target_probability_is_zero_or_one() -> None:
     assert missing.forward_strategy.target_probability.probability_met == 0
 
 
+def test_full_hedge_target_uses_same_cent_rounding_as_scenario() -> None:
+    result = calculate(
+        request(
+            exposure_usd=1,
+            target_cny=6.806,
+            legs=[{"notional_usd": 1, "forward_rate": 6.805}],
+        )
+    )
+
+    assert result.forward_strategy.expected_amount_cny == 6.81
+    assert result.forward_strategy.target_probability is not None
+    assert result.forward_strategy.target_probability.critical_spot is None
+    assert result.forward_strategy.target_probability.probability_met == 1
+
+
 def test_target_is_null_when_user_omits_it() -> None:
     result = calculate(request(target_cny=None))
 
     assert result.no_hedge.target_probability is None
     assert result.forward_strategy.target_probability is None
+
+
+@pytest.mark.parametrize(
+    "exposure_type",
+    ["usd_receivable", "usd_payable", "usd_holding"],
+)
+def test_over_hedge_target_uses_correct_negative_slope_tail(
+    exposure_type: str,
+) -> None:
+    result = calculate(
+        request(
+            exposure_type=exposure_type,
+            target_cny=6_800_000,
+            legs=[{"notional_usd": 1_500_000, "forward_rate": 6.80}],
+        )
+    )
+
+    target = result.forward_strategy.target_probability
+    assert target is not None
+    assert target.critical_spot == pytest.approx(6.80)
+    assert target.probability_met == pytest.approx(
+        result.comparison.probability_strategy_better
+    )
+    expected_kind = (
+        "cny_cost" if exposure_type == "usd_payable" else "cny_proceeds"
+    )
+    assert result.result_kind == expected_kind
 
 
 @pytest.mark.parametrize(

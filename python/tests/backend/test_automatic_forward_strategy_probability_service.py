@@ -47,6 +47,9 @@ def test_service_uses_forecast_and_historical_volatility() -> None:
     assert result.distribution.assumed_annualized_volatility_pct == 4.2
     assert result.data_sources.forecast == forecast_result()
     assert result.data_sources.market_history == market_result()
+    assert any("历史波动率" in item for item in result.limitations)
+    assert any("模型估算" in item for item in result.limitations)
+    assert any("不构成交易或套保建议" in item for item in result.limitations)
 
 
 def test_forecast_error_stops_before_market_lookup() -> None:

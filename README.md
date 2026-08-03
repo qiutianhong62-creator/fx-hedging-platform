@@ -115,7 +115,7 @@ POST /api/v1/analysis/forward-strategy/automatic-probability
   "currency_pair": "USD/CNY",
   "exposure_type": "usd_receivable",
   "notional_usd": 1000000,
-  "maturity_date": "2030-12-31",
+  "maturity_date": "2026-12-31",
   "target_cny": 6800000,
   "forward_legs": [
     {
@@ -125,6 +125,8 @@ POST /api/v1/analysis/forward-strategy/automatic-probability
   ]
 }
 ```
+
+实际测试时，请把 `maturity_date` 替换为当天之后、365天以内，并且不超过当前机构预测最远日期的有效日期。
 
 用户只输入敞口、到期日、可选目标金额和真实远期报价。系统自动读取当前接入的机构预测与历史波动率，并在同一概率分布下返回不套保和远期策略的预计金额、50%与90%金额范围、目标达标概率、策略更优概率和范围变化。
 
