@@ -1,7 +1,10 @@
 from datetime import date, timedelta
 
+import pytest
+
 from backend.forward_strategy.probability import (
     calculate_amount_range,
+    calculate_forward_strategy_probability,
     scenario_amounts_at_spot,
 )
 from backend.forward_strategy.schemas import (
@@ -39,6 +42,17 @@ def distribution():
         annualized_volatility_pct=4.2,
         maturity_date=MATURITY_DATE,
         valuation_date=VALUATION_DATE,
+    )
+
+
+def calculate(payload: ForwardStrategyProbabilityRequest):
+    return calculate_forward_strategy_probability(
+        payload,
+        expected_maturity_spot=6.72,
+        annualized_volatility_pct=4.2,
+        valuation_date=VALUATION_DATE,
+        source_type="market_data",
+        is_market_forecast=True,
     )
 
 
@@ -112,3 +126,92 @@ def test_over_hedge_range_is_sorted_when_amount_slope_is_negative() -> None:
     scenario = scenario_amounts_at_spot(payload, 6.72)
     assert scenario.coverage.status == "over_hedged"
     assert scenario.coverage.warnings[0].code == "over_hedged"
+
+
+def test_receivable_target_and_strategy_win_probabilities() -> None:
+    result = calculate(request(target_cny=6_680_000))
+
+    assert result.no_hedge.target_probability is not None
+    assert result.forward_strategy.target_probability is not None
+    assert result.no_hedge.target_probability.critical_spot == pytest.approx(
+        6.68
+    )
+    assert 0 <= result.no_hedge.target_probability.probability_met <= 1
+    assert (
+        0
+        <= result.forward_strategy.target_probability.probability_met
+        <= 1
+    )
+    assert result.comparison.break_even_spot == pytest.approx(6.78)
+    assert (
+        result.comparison.probability_strategy_better
+        + result.comparison.probability_no_hedge_better
+        == pytest.approx(1.0)
+    )
+
+
+def test_payable_reverses_target_and_better_inequalities() -> None:
+    receivable = calculate(request(target_cny=6_680_000))
+    payable = calculate(
+        request(exposure_type="usd_payable", target_cny=6_680_000)
+    )
+
+    assert receivable.no_hedge.target_probability is not None
+    assert payable.no_hedge.target_probability is not None
+    assert payable.no_hedge.target_probability.probability_met == pytest.approx(
+        1 - receivable.no_hedge.target_probability.probability_met
+    )
+    assert payable.comparison.probability_strategy_better == pytest.approx(
+        1 - receivable.comparison.probability_strategy_better
+    )
+
+
+def test_full_hedge_target_probability_is_zero_or_one() -> None:
+    passing = calculate(
+        request(
+            target_cny=6_750_000,
+            legs=[{"notional_usd": 1_000_000, "forward_rate": 6.80}],
+        )
+    )
+    missing = calculate(
+        request(
+            target_cny=6_850_000,
+            legs=[{"notional_usd": 1_000_000, "forward_rate": 6.80}],
+        )
+    )
+
+    assert passing.forward_strategy.target_probability is not None
+    assert passing.forward_strategy.target_probability.critical_spot is None
+    assert passing.forward_strategy.target_probability.probability_met == 1
+    assert missing.forward_strategy.target_probability is not None
+    assert missing.forward_strategy.target_probability.probability_met == 0
+
+
+def test_target_is_null_when_user_omits_it() -> None:
+    result = calculate(request(target_cny=None))
+
+    assert result.no_hedge.target_probability is None
+    assert result.forward_strategy.target_probability is None
+
+
+@pytest.mark.parametrize(
+    ("hedge_notional", "expected_change"),
+    [
+        (500_000, "reduced"),
+        (2_000_000, "unchanged"),
+        (2_500_000, "increased"),
+    ],
+)
+def test_range_change_can_reduce_stay_equal_or_increase(
+    hedge_notional: float,
+    expected_change: str,
+) -> None:
+    result = calculate(
+        request(
+            legs=[
+                {"notional_usd": hedge_notional, "forward_rate": 6.80}
+            ]
+        )
+    )
+
+    assert result.comparison.wide_range_90_width.change == expected_change
