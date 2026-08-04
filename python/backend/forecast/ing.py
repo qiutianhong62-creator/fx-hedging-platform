@@ -6,13 +6,13 @@ from math import isfinite
 import httpx
 
 from backend.forecast.errors import ForecastFetchError, ForecastSourceInvalidError
+from backend.forecast.quarters import parse_quarter_end
 from backend.forecast.types import ForecastPoint, InstitutionForecastSnapshot
 
 
 ING_FORECAST_URL = "https://think.ing.com/forecasts/"
 REQUEST_TIMEOUT_SECONDS = 10.0
 USER_AGENT = "fx-hedging-platform/0.1 market-data-client"
-QUARTER_PATTERN = re.compile(r"([1-4])Q(\d{2})F")
 UPDATED_PATTERN = re.compile(r"Last updated:\s*(\d{1,2})\s+([A-Za-z]+)")
 MONTHS = {
     "january": 1,
@@ -99,22 +99,6 @@ class _IngFxParser(HTMLParser):
                 self.in_fx = False
 
 
-def parse_quarter_label(label: str) -> date:
-    match = QUARTER_PATTERN.fullmatch(label.strip())
-    if match is None:
-        raise ForecastSourceInvalidError()
-    quarter = int(match.group(1))
-    year = 2000 + int(match.group(2))
-    month_day = {
-        1: (3, 31),
-        2: (6, 30),
-        3: (9, 30),
-        4: (12, 31),
-    }
-    month, day = month_day[quarter]
-    return date(year, month, day)
-
-
 def _resolve_updated_date(text: str, retrieved_on: date) -> date:
     match = UPDATED_PATTERN.search(text)
     if match is None:
@@ -153,7 +137,7 @@ def parse_ing_forecast_html(
         raise ForecastSourceInvalidError()
     points: list[ForecastPoint] = []
     for label, raw_spot in zip(headers[2:], row[2:]):
-        point_date = parse_quarter_label(label)
+        point_date = parse_quarter_end(label)
         try:
             spot = float(raw_spot)
         except ValueError as exc:

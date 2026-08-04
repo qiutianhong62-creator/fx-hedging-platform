@@ -23,7 +23,7 @@ def test_exact_ing_date_returns_direct_original_point() -> None:
     result = match_maturity_forecast(
         valuation_date=VALUATION_DATE,
         maturity_date=date(2026, 12, 31),
-        ing_points=POINTS,
+        forecast_points=POINTS,
     )
 
     assert result.expected_spot == 6.70
@@ -39,7 +39,7 @@ def test_between_ing_points_interpolates_by_natural_days() -> None:
     result = match_maturity_forecast(
         valuation_date=VALUATION_DATE,
         maturity_date=date(2026, 11, 15),
-        ing_points=POINTS,
+        forecast_points=POINTS,
     )
 
     assert result.day_weight == pytest.approx(0.5)
@@ -47,18 +47,29 @@ def test_between_ing_points_interpolates_by_natural_days() -> None:
     assert [item.source for item in result.anchors] == ["ING", "ING"]
 
 
+def test_matcher_labels_anchors_with_the_selected_institution() -> None:
+    result = match_maturity_forecast(
+        valuation_date=VALUATION_DATE,
+        maturity_date=date(2026, 11, 15),
+        institution="MUFG",
+        forecast_points=POINTS,
+    )
+
+    assert [item.source for item in result.anchors] == ["MUFG", "MUFG"]
+
+
 def test_before_first_ing_point_requires_and_uses_actual_fred_anchor() -> None:
     with pytest.raises(ForecastAnchorRequiredError):
         match_maturity_forecast(
             valuation_date=VALUATION_DATE,
             maturity_date=date(2026, 8, 15),
-            ing_points=POINTS,
+            forecast_points=POINTS,
         )
 
     result = match_maturity_forecast(
         valuation_date=VALUATION_DATE,
         maturity_date=date(2026, 8, 15),
-        ing_points=POINTS,
+        forecast_points=POINTS,
         fred_anchor=ForecastAnchor("FRED", date(2026, 7, 10), 6.7766),
     )
 
@@ -83,7 +94,7 @@ def test_maturity_must_be_in_the_next_365_days(maturity_date: date) -> None:
         match_maturity_forecast(
             valuation_date=VALUATION_DATE,
             maturity_date=maturity_date,
-            ing_points=POINTS,
+            forecast_points=POINTS,
         )
 
 
@@ -92,5 +103,5 @@ def test_matcher_never_extrapolates_after_last_ing_point() -> None:
         match_maturity_forecast(
             valuation_date=VALUATION_DATE,
             maturity_date=date(2027, 4, 1),
-            ing_points=POINTS,
+            forecast_points=POINTS,
         )

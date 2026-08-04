@@ -71,7 +71,7 @@ class MaturityForecastService:
             matched = match_maturity_forecast(
                 valuation_date=now.date(),
                 maturity_date=maturity_date,
-                ing_points=snapshot.points,
+                forecast_points=snapshot.points,
             )
         except ForecastAnchorRequiredError:
             market_summary = self._market_history_service.get_summary()
@@ -79,7 +79,7 @@ class MaturityForecastService:
             matched = match_maturity_forecast(
                 valuation_date=now.date(),
                 maturity_date=maturity_date,
-                ing_points=snapshot.points,
+                forecast_points=snapshot.points,
                 fred_anchor=ForecastAnchor(
                     source="FRED",
                     date=reference.observation_date,

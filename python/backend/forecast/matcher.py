@@ -55,19 +55,20 @@ def match_maturity_forecast(
     *,
     valuation_date: date,
     maturity_date: date,
-    ing_points: Sequence[ForecastPoint],
+    forecast_points: Sequence[ForecastPoint],
+    institution: str = "ING",
     fred_anchor: ForecastAnchor | None = None,
 ) -> ForecastMatch:
     validate_maturity_date(valuation_date, maturity_date)
     future_points = tuple(
-        item for item in ing_points if item.date > valuation_date
+        item for item in forecast_points if item.date > valuation_date
     )
     if not future_points or maturity_date > future_points[-1].date:
         raise ForecastHorizonInsufficientError()
 
     for point in future_points:
         if point.date == maturity_date:
-            anchor = ForecastAnchor("ING", point.date, point.spot)
+            anchor = ForecastAnchor(institution, point.date, point.spot)
             return ForecastMatch(
                 expected_spot=point.spot,
                 method="direct",
@@ -85,14 +86,14 @@ def match_maturity_forecast(
         return _interpolate(
             maturity_date,
             fred_anchor,
-            ForecastAnchor("ING", first.date, first.spot),
+            ForecastAnchor(institution, first.date, first.spot),
         )
 
     for before, after in zip(future_points, future_points[1:]):
         if before.date < maturity_date < after.date:
             return _interpolate(
                 maturity_date,
-                ForecastAnchor("ING", before.date, before.spot),
-                ForecastAnchor("ING", after.date, after.spot),
+                ForecastAnchor(institution, before.date, before.spot),
+                ForecastAnchor(institution, after.date, after.spot),
             )
     raise ForecastHorizonInsufficientError()
