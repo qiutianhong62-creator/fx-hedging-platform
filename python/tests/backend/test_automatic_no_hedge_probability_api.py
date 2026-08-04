@@ -52,11 +52,16 @@ def test_automatic_endpoint_needs_no_assumption_fields() -> None:
     body = response.json()
     assert body["distribution"]["source_type"] == "market_data"
     assert body["distribution"]["is_market_forecast"] is True
-    assert body["distribution"]["assumed_expected_maturity_spot"] == 6.72
+    assert body["distribution"]["assumed_expected_maturity_spot"] == 6.65
     assert body["distribution"]["assumed_annualized_volatility_pct"] == 4.2
-    assert body["data_sources"]["forecast"]["sources"][0][
-        "institution"
-    ] == "ING"
+    assert [
+        item["institution"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == ["ING", "MUFG"]
+    assert [
+        item["weight"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == [0.5, 0.5]
     assert body["data_sources"]["market_history"]["source"][
         "provider"
     ] == "FRED"

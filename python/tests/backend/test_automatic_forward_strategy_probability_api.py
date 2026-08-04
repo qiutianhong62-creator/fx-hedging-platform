@@ -54,14 +54,18 @@ def test_endpoint_returns_strategy_comparison_without_assumptions() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["distribution"]["source_type"] == "market_data"
-    assert body["no_hedge"]["expected_amount_cny"] == 6_720_000
-    assert body["forward_strategy"]["expected_amount_cny"] == 6_760_000
+    assert body["no_hedge"]["expected_amount_cny"] == 6_650_000
+    assert body["forward_strategy"]["expected_amount_cny"] == 6_725_000
     assert 0 <= body["comparison"]["probability_strategy_better"] <= 1
     assert body["forward_strategy"]["coverage"]["coverage_ratio"] == 0.5
-    assert (
-        body["data_sources"]["forecast"]["sources"][0]["institution"]
-        == "ING"
-    )
+    assert [
+        item["institution"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == ["ING", "MUFG"]
+    assert [
+        item["weight"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == [0.5, 0.5]
     assert (
         body["data_sources"]["market_history"]["source"]["provider"]
         == "FRED"
