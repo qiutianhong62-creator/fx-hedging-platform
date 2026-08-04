@@ -140,7 +140,7 @@ def test_consensus_rounds_result_to_six_decimal_places() -> None:
         FakeInstitutionService(result=estimate("MUFG", 6.2345678)),
     ).get_estimate(MATURITY_DATE)
 
-    assert result.expected_maturity_spot == 6.179012
+    assert result.expected_maturity_spot == 6.179013
 
 
 def test_source_matched_spots_hide_binary_float_artifacts() -> None:
@@ -153,6 +153,19 @@ def test_source_matched_spots_hide_binary_float_artifacts() -> None:
         6.72,
         6.675,
     ]
+
+
+def test_consensus_is_reproducible_from_displayed_source_values() -> None:
+    result = service(
+        FakeInstitutionService(result=estimate("ING", 6.0)),
+        FakeInstitutionService(result=estimate("MUFG", 6.0000005)),
+    ).get_estimate(MATURITY_DATE)
+
+    assert [item.matched_maturity_spot for item in result.sources] == [
+        6.0,
+        6.000001,
+    ]
+    assert result.expected_maturity_spot == 6.000001
 
 
 @pytest.mark.parametrize(

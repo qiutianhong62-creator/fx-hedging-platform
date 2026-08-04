@@ -109,6 +109,16 @@ def test_parser_requires_at_least_two_future_points() -> None:
         parse_mufg_forecast_html(mufg_html(updated="03 March 2027"), retrieved_at)
 
 
+def test_parser_rejects_conflicting_update_markers() -> None:
+    html_text = (
+        mufg_html()
+        + "<p>Latest FX forecast update: 04 July 2026</p>"
+    )
+
+    with pytest.raises(ForecastSourceInvalidError):
+        parse_mufg_forecast_html(html_text, RETRIEVED_AT)
+
+
 def test_provider_requests_only_the_fixed_official_page() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == MUFG_FORECAST_URL
@@ -122,6 +132,15 @@ def test_provider_requests_only_the_fixed_official_page() -> None:
     result = provider.fetch(RETRIEVED_AT)
 
     assert result.institution == "MUFG"
+
+
+def test_provider_default_client_uses_timeout_and_redirects() -> None:
+    provider = MufgForecastProvider()
+    try:
+        assert provider._http_client.follow_redirects is True
+        assert provider._http_client.timeout.read == 10.0
+    finally:
+        provider._http_client.close()
 
 
 @pytest.mark.parametrize("status", [404, 429, 503])

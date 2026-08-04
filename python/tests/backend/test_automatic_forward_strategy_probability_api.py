@@ -5,7 +5,10 @@ from fastapi.testclient import TestClient
 from backend.automatic_analysis.service import (
     AutomaticForwardStrategyProbabilityService,
 )
-from backend.forecast.errors import ForecastSourceUnavailableError
+from backend.forecast.errors import (
+    ForecastSourceUnavailableError,
+    ForecastSourcesUnavailableError,
+)
 from backend.main import app
 from backend.routes.forward_strategy import (
     get_automatic_forward_strategy_probability_service,
@@ -96,6 +99,29 @@ def test_endpoint_preserves_forecast_error_contract() -> None:
     assert response.status_code == 503
     assert response.json()["error"]["code"] == (
         "forecast_source_unavailable"
+    )
+
+
+def test_endpoint_returns_aggregate_forecast_error() -> None:
+    app.dependency_overrides[
+        get_automatic_forward_strategy_probability_service
+    ] = lambda: AutomaticForwardStrategyProbabilityService(
+        forecast_service=FakeForecastService(
+            error=ForecastSourcesUnavailableError()
+        ),
+        market_history_service=FakeMarketService(),
+    )
+    try:
+        response = client.post(
+            "/api/v1/analysis/forward-strategy/automatic-probability",
+            json=valid_payload(),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == (
+        "forecast_sources_unavailable"
     )
 
 

@@ -19,6 +19,7 @@ from backend.forecast.types import (
     InstitutionForecastSnapshot,
     InstitutionMaturityEstimate,
 )
+from backend.market.errors import MarketDataError
 
 
 NORMAL_CACHE_TTL = timedelta(hours=24)
@@ -67,7 +68,12 @@ class InstitutionForecastService:
                 forecast_points=snapshot.points,
             )
         except ForecastAnchorRequiredError:
-            reference = self._market_history_service.get_summary().market_reference
+            try:
+                reference = (
+                    self._market_history_service.get_summary().market_reference
+                )
+            except MarketDataError as exc:
+                raise ForecastSourceUnavailableError() from exc
             matched = match_maturity_forecast(
                 valuation_date=valuation_date,
                 maturity_date=maturity_date,

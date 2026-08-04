@@ -98,10 +98,14 @@ class MaturityForecastService:
 
         is_consensus = len(successes) == 2
         weight = Decimal("0.5") if is_consensus else Decimal("1")
+        normalized_spots = [
+            _spot_decimal(item.matched.expected_spot)
+            for item in successes
+        ]
         expected_spot = sum(
             (
-                Decimal(str(item.matched.expected_spot)) * weight
-                for item in successes
+                spot * weight
+                for spot in normalized_spots
             ),
             Decimal("0"),
         ).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
@@ -118,8 +122,8 @@ class MaturityForecastService:
             ),
             is_consensus_forecast=is_consensus,
             sources=[
-                _source_response(item, float(weight))
-                for item in successes
+                _source_response(item, spot, float(weight))
+                for item, spot in zip(successes, normalized_spots)
             ],
             unavailable_sources=failures,
             limitations=(
@@ -132,13 +136,14 @@ class MaturityForecastService:
 
 def _source_response(
     estimate: InstitutionMaturityEstimate,
+    normalized_spot: Decimal,
     weight: float,
 ) -> InstitutionForecastSourceResponse:
     matched = estimate.matched
     snapshot = estimate.snapshot
     return InstitutionForecastSourceResponse(
         institution=estimate.institution,
-        matched_maturity_spot=_round_spot(matched.expected_spot),
+        matched_maturity_spot=float(normalized_spot),
         weight=weight,
         matching=ForecastMatchingResponse(
             method=matched.method,
@@ -166,10 +171,8 @@ def _source_response(
     )
 
 
-def _round_spot(value: float) -> float:
-    return float(
-        Decimal(str(value)).quantize(
-            Decimal("0.000001"),
-            rounding=ROUND_HALF_UP,
-        )
+def _spot_decimal(value: float) -> Decimal:
+    return Decimal(str(value)).quantize(
+        Decimal("0.000001"),
+        rounding=ROUND_HALF_UP,
     )

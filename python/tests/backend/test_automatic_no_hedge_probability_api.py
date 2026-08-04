@@ -5,7 +5,10 @@ from fastapi.testclient import TestClient
 from backend.automatic_analysis.service import (
     AutomaticNoHedgeProbabilityService,
 )
-from backend.forecast.errors import ForecastSourceUnavailableError
+from backend.forecast.errors import (
+    ForecastSourceUnavailableError,
+    ForecastSourcesUnavailableError,
+)
 from backend.main import app
 from backend.routes.analysis import (
     get_automatic_no_hedge_probability_service,
@@ -87,4 +90,27 @@ def test_automatic_endpoint_keeps_forecast_error_contract() -> None:
     assert response.status_code == 503
     assert response.json()["error"]["code"] == (
         "forecast_source_unavailable"
+    )
+
+
+def test_automatic_endpoint_returns_aggregate_forecast_error() -> None:
+    app.dependency_overrides[
+        get_automatic_no_hedge_probability_service
+    ] = lambda: AutomaticNoHedgeProbabilityService(
+        forecast_service=FakeForecastService(
+            error=ForecastSourcesUnavailableError()
+        ),
+        market_history_service=FakeMarketService(),
+    )
+    try:
+        response = client.post(
+            "/api/v1/analysis/no-hedge/automatic-probability",
+            json=valid_payload(),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == (
+        "forecast_sources_unavailable"
     )

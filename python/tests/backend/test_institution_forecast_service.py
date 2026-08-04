@@ -17,6 +17,7 @@ from backend.forecast.ing import ING_FORECAST_URL
 from backend.forecast.institution import InstitutionForecastService
 from backend.forecast.mufg import MUFG_FORECAST_URL
 from backend.forecast.types import ForecastPoint, InstitutionForecastSnapshot
+from backend.market.errors import MarketDataUnavailableError
 
 
 NOW = datetime(2026, 8, 4, 10, tzinfo=timezone.utc)
@@ -62,11 +63,14 @@ class FakeProvider:
 
 
 class FakeMarketService:
-    def __init__(self) -> None:
+    def __init__(self, error: Exception | None = None) -> None:
         self.calls = 0
+        self.error = error
 
     def get_summary(self):
         self.calls += 1
+        if self.error is not None:
+            raise self.error
         return SimpleNamespace(
             market_reference=SimpleNamespace(
                 spot=6.7766,
@@ -125,6 +129,28 @@ def test_service_returns_traceable_institution_match(
 
 
 @pytest.mark.parametrize(("institution", "source_url"), SOURCES)
+def test_service_returns_direct_match_for_exact_quarter_date(
+    tmp_path: Path,
+    institution: str,
+    source_url: str,
+) -> None:
+    result = make_service(
+        tmp_path,
+        institution,
+        source_url,
+        FakeProvider(snapshot(institution, source_url)),
+    ).get_estimate(
+        NOW.date(),
+        date(2026, 12, 31),
+        now_utc=NOW,
+    )
+
+    assert result.matched.method == "direct"
+    assert result.matched.expected_spot == 6.70
+    assert [item.source for item in result.matched.anchors] == [institution]
+
+
+@pytest.mark.parametrize(("institution", "source_url"), SOURCES)
 def test_service_uses_fred_only_before_first_institution_point(
     tmp_path: Path,
     institution: str,
@@ -150,6 +176,26 @@ def test_service_uses_fred_only_before_first_institution_point(
         "FRED",
         institution,
     ]
+
+
+def test_fred_anchor_failure_becomes_source_unavailable(tmp_path: Path) -> None:
+    market = FakeMarketService(error=MarketDataUnavailableError())
+    service = make_service(
+        tmp_path,
+        "ING",
+        ING_FORECAST_URL,
+        FakeProvider(snapshot("ING", ING_FORECAST_URL)),
+        market,
+    )
+
+    with pytest.raises(ForecastSourceUnavailableError):
+        service.get_estimate(
+            NOW.date(),
+            date(2026, 8, 31),
+            now_utc=NOW,
+        )
+
+    assert market.calls == 1
 
 
 def test_daily_cache_avoids_network_fetch(tmp_path: Path) -> None:
@@ -213,6 +259,27 @@ def test_network_failure_rejects_cache_older_than_seven_days(
         )
 
 
+def test_future_dated_cache_is_ignored_and_refetched(tmp_path: Path) -> None:
+    future = snapshot(
+        "ING",
+        ING_FORECAST_URL,
+        fetched_at=NOW + timedelta(hours=1),
+    )
+    current = snapshot("ING", ING_FORECAST_URL)
+    provider = FakeProvider(current)
+    service = make_service(tmp_path, "ING", ING_FORECAST_URL, provider)
+    service._cache.save(future)
+
+    result = service.get_estimate(
+        NOW.date(),
+        date(2026, 11, 15),
+        now_utc=NOW,
+    )
+
+    assert provider.calls == 1
+    assert result.cache_status == "live_fetch"
+
+
 def test_invalid_source_is_not_hidden_by_old_cache(tmp_path: Path) -> None:
     cached = snapshot(
         "MUFG",
@@ -244,6 +311,26 @@ def test_source_update_older_than_45_days_is_rejected(tmp_path: Path) -> None:
             "ING",
             ING_FORECAST_URL,
             FakeProvider(stale),
+        ).get_estimate(
+            NOW.date(),
+            date(2026, 11, 15),
+            now_utc=NOW,
+        )
+
+
+def test_future_source_update_is_rejected(tmp_path: Path) -> None:
+    future_update = snapshot(
+        "MUFG",
+        MUFG_FORECAST_URL,
+        updated_on=NOW.date() + timedelta(days=1),
+    )
+
+    with pytest.raises(ForecastSourceInvalidError):
+        make_service(
+            tmp_path,
+            "MUFG",
+            MUFG_FORECAST_URL,
+            FakeProvider(future_update),
         ).get_estimate(
             NOW.date(),
             date(2026, 11, 15),

@@ -155,19 +155,28 @@ def _positive_finite(raw_value: str) -> float:
 
 
 def _parse_updated_date(text: str, retrieved_on: date) -> date:
-    match = UPDATED_PATTERN.search(text)
-    if match is None:
+    matches = list(UPDATED_PATTERN.finditer(text))
+    if not matches:
         raise ForecastSourceInvalidError()
-    month = MONTHS.get(match.group(2).lower())
-    if month is None:
+    dates: set[date] = set()
+    for match in matches:
+        month = MONTHS.get(match.group(2).lower())
+        if month is None:
+            raise ForecastSourceInvalidError()
+        try:
+            updated_on = date(
+                int(match.group(3)),
+                month,
+                int(match.group(1)),
+            )
+        except ValueError as exc:
+            raise ForecastSourceInvalidError() from exc
+        if updated_on > retrieved_on:
+            raise ForecastSourceInvalidError()
+        dates.add(updated_on)
+    if len(dates) != 1:
         raise ForecastSourceInvalidError()
-    try:
-        updated_on = date(int(match.group(3)), month, int(match.group(1)))
-    except ValueError as exc:
-        raise ForecastSourceInvalidError() from exc
-    if updated_on > retrieved_on:
-        raise ForecastSourceInvalidError()
-    return updated_on
+    return dates.pop()
 
 
 def parse_mufg_forecast_html(
