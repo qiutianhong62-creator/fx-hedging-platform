@@ -138,7 +138,7 @@ def _source_response(
     snapshot = estimate.snapshot
     return InstitutionForecastSourceResponse(
         institution=estimate.institution,
-        matched_maturity_spot=matched.expected_spot,
+        matched_maturity_spot=_round_spot(matched.expected_spot),
         weight=weight,
         matching=ForecastMatchingResponse(
             method=matched.method,
@@ -163,4 +163,13 @@ def _source_response(
         fetched_at_utc=snapshot.fetched_at_utc,
         cache_age_hours=estimate.cache_age_hours,
         is_stale=estimate.is_stale,
+    )
+
+
+def _round_spot(value: float) -> float:
+    return float(
+        Decimal(str(value)).quantize(
+            Decimal("0.000001"),
+            rounding=ROUND_HALF_UP,
+        )
     )

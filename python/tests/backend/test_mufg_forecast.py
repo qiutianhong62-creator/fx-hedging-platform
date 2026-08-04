@@ -56,6 +56,22 @@ def test_parser_reads_only_fx_usd_cny_and_full_update_date() -> None:
     ]
 
 
+def test_parser_supports_mufg_header_in_first_body_row() -> None:
+    actual_structure = """
+    <p>Latest FX forecast update: 03 August 2026</p>
+    <h3>FX Rates</h3>
+    <table><tbody>
+      <tr><td></td><td>Q3 2026</td><td>Q4 2026</td><td>Q1 2027</td><td>Q2 2027</td></tr>
+      <tr><td>USD/CNY</td><td>6.7000</td><td>6.6500</td><td>6.6000</td><td>6.6000</td></tr>
+    </tbody></table>
+    """
+
+    result = parse_mufg_forecast_html(actual_structure, RETRIEVED_AT)
+
+    assert result.source_updated_date == date(2026, 8, 3)
+    assert [item.spot for item in result.points] == [6.7, 6.65, 6.6, 6.6]
+
+
 @pytest.mark.parametrize(
     "html_text",
     [

@@ -122,6 +122,16 @@ class _MufgForecastParser(HTMLParser):
         for heading, headers, rows in self.tables:
             if heading.casefold() != "fx rates":
                 continue
+            if not headers and rows:
+                body_headers = rows[0]
+                if not body_headers or body_headers[0] != "":
+                    continue
+                try:
+                    tuple(parse_quarter_end(item) for item in body_headers[1:])
+                except ForecastSourceInvalidError:
+                    continue
+                headers = ("Currency Pair", *body_headers[1:])
+                rows = rows[1:]
             if not headers or headers[0].casefold() != "currency pair":
                 continue
             for row in rows:

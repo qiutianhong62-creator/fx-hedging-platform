@@ -143,6 +143,18 @@ def test_consensus_rounds_result_to_six_decimal_places() -> None:
     assert result.expected_maturity_spot == 6.179012
 
 
+def test_source_matched_spots_hide_binary_float_artifacts() -> None:
+    result = service(
+        FakeInstitutionService(result=estimate("ING", 6.720000000000001)),
+        FakeInstitutionService(result=estimate("MUFG", 6.675000000000001)),
+    ).get_estimate(MATURITY_DATE)
+
+    assert [item.matched_maturity_spot for item in result.sources] == [
+        6.72,
+        6.675,
+    ]
+
+
 @pytest.mark.parametrize(
     ("failed_name", "error", "reason_code"),
     [
