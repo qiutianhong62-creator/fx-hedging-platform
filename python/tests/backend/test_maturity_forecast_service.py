@@ -12,11 +12,20 @@ from backend.forecast.errors import (
     ForecastSourceStaleError,
     ForecastSourceUnavailableError,
 )
+from backend.forecast.ing import ING_FORECAST_URL
 from backend.forecast.service import MaturityForecastService
 from backend.forecast.types import ForecastPoint, InstitutionForecastSnapshot
 
 
 NOW = datetime(2026, 7, 18, 10, tzinfo=timezone.utc)
+
+
+def forecast_cache(path: Path) -> JsonForecastCache:
+    return JsonForecastCache(
+        path,
+        institution="ING",
+        source_url=ING_FORECAST_URL,
+    )
 
 
 def snapshot(
@@ -76,7 +85,7 @@ def service(
 ) -> MaturityForecastService:
     return MaturityForecastService(
         provider=provider,
-        cache=JsonForecastCache(tmp_path / "forecast.json"),
+        cache=forecast_cache(tmp_path / "forecast.json"),
         market_history_service=market,
         now_utc=lambda: NOW,
     )
@@ -129,7 +138,7 @@ def test_before_first_ing_point_calls_fred_and_returns_actual_anchor(
 def test_daily_cache_avoids_ing_and_still_avoids_unneeded_fred(
     tmp_path: Path,
 ) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
+    cache = forecast_cache(tmp_path / "forecast.json")
     cache.save(snapshot(fetched_at=NOW - timedelta(hours=23)))
     provider = FakeProvider(error=ForecastFetchError())
     market = FakeMarketService()
@@ -144,7 +153,7 @@ def test_daily_cache_avoids_ing_and_still_avoids_unneeded_fred(
 
 
 def test_network_failure_uses_cache_through_seven_days(tmp_path: Path) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
+    cache = forecast_cache(tmp_path / "forecast.json")
     cache.save(snapshot(
         fetched_at=NOW - timedelta(days=6),
         updated_on=date(2026, 7, 10),
@@ -163,7 +172,7 @@ def test_network_failure_uses_cache_through_seven_days(tmp_path: Path) -> None:
 def test_network_failure_rejects_cache_older_than_seven_days(
     tmp_path: Path,
 ) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
+    cache = forecast_cache(tmp_path / "forecast.json")
     cache.save(snapshot(
         fetched_at=NOW - timedelta(days=8),
         updated_on=date(2026, 7, 10),
@@ -178,7 +187,7 @@ def test_network_failure_rejects_cache_older_than_seven_days(
 
 
 def test_future_dated_cache_is_ignored_and_refetched(tmp_path: Path) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
+    cache = forecast_cache(tmp_path / "forecast.json")
     cache.save(snapshot(fetched_at=NOW + timedelta(hours=1)))
     provider = FakeProvider()
 
@@ -193,7 +202,7 @@ def test_future_dated_cache_is_ignored_and_refetched(tmp_path: Path) -> None:
 
 
 def test_invalid_page_does_not_hide_behind_old_cache(tmp_path: Path) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
+    cache = forecast_cache(tmp_path / "forecast.json")
     cache.save(snapshot(fetched_at=NOW - timedelta(days=2)))
 
     with pytest.raises(ForecastSourceInvalidError):

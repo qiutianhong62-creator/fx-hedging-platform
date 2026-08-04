@@ -4,8 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from backend.forecast.cache import JsonForecastCache, default_forecast_cache_path
-from backend.forecast.ing import IngForecastProvider
+from backend.forecast.cache import (
+    JsonForecastCache,
+    default_ing_forecast_cache_path,
+)
+from backend.forecast.ing import ING_FORECAST_URL, IngForecastProvider
 from backend.forecast.schemas import MaturityForecastResponse
 from backend.forecast.service import MaturityForecastService
 from backend.routes.market import get_market_history_service
@@ -18,7 +21,11 @@ router = APIRouter(prefix="/api/v1/forecasts", tags=["forecasts"])
 def get_maturity_forecast_service() -> MaturityForecastService:
     return MaturityForecastService(
         provider=IngForecastProvider(),
-        cache=JsonForecastCache(default_forecast_cache_path()),
+        cache=JsonForecastCache(
+            default_ing_forecast_cache_path(),
+            institution="ING",
+            source_url=ING_FORECAST_URL,
+        ),
         market_history_service=get_market_history_service(),
     )
 
