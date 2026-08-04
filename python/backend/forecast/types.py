@@ -35,6 +35,16 @@ class ForecastMatch:
     anchors: tuple[ForecastAnchor, ...]
 
 
+@dataclass(frozen=True)
+class InstitutionMaturityEstimate:
+    institution: str
+    matched: ForecastMatch
+    snapshot: InstitutionForecastSnapshot
+    cache_status: str
+    cache_age_hours: float
+    is_stale: bool
+
+
 class ForecastProvider(Protocol):
     def fetch(
         self,
