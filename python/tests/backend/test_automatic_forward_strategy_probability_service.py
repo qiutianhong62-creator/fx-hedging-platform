@@ -43,9 +43,13 @@ def test_service_uses_forecast_and_historical_volatility() -> None:
 
     assert forecast.calls == [MATURITY_DATE]
     assert market.calls == 1
-    assert result.distribution.assumed_expected_maturity_spot == 6.72
+    assert result.distribution.assumed_expected_maturity_spot == 6.65
     assert result.distribution.assumed_annualized_volatility_pct == 4.2
     assert result.data_sources.forecast == forecast_result()
+    assert [item.institution for item in result.data_sources.forecast.sources] == [
+        "ING",
+        "MUFG",
+    ]
     assert result.data_sources.market_history == market_result()
     assert any("历史波动率" in item for item in result.limitations)
     assert any("模型估算" in item for item in result.limitations)

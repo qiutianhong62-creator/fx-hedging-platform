@@ -20,23 +20,29 @@ class ForecastMaturityInvalidError(ForecastError):
 
 class ForecastHorizonInsufficientError(ForecastError):
     code = "forecast_horizon_insufficient"
-    message = "ING预测期限不足，无法覆盖该到期日"
+    message = "机构预测期限不足，无法覆盖该到期日"
     status_code = 503
 
 
 class ForecastSourceUnavailableError(ForecastError):
     code = "forecast_source_unavailable"
-    message = "ING预测数据暂时不可用，请稍后重试"
+    message = "机构预测数据暂时不可用，请稍后重试"
+    status_code = 503
+
+
+class ForecastSourcesUnavailableError(ForecastError):
+    code = "forecast_sources_unavailable"
+    message = "所有机构预测数据暂时不可用，请稍后重试"
     status_code = 503
 
 
 class ForecastSourceInvalidError(ForecastError):
     code = "forecast_source_invalid"
-    message = "ING预测页面格式异常，请稍后重试"
+    message = "机构预测页面格式异常，请稍后重试"
     status_code = 502
 
 
 class ForecastSourceStaleError(ForecastError):
     code = "forecast_source_stale"
-    message = "ING预测已超过45天未更新"
+    message = "机构预测已超过45天未更新"
     status_code = 503

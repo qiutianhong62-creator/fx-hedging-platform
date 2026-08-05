@@ -5,6 +5,13 @@ from pydantic import BaseModel
 
 
 CacheStatus = Literal["live_fetch", "daily_cache", "stale_fallback"]
+InstitutionName = Literal["ING", "MUFG"]
+UnavailableReason = Literal[
+    "fetch_failed",
+    "source_invalid",
+    "source_stale",
+    "horizon_insufficient",
+]
 
 
 class ForecastPointResponse(BaseModel):
@@ -13,7 +20,7 @@ class ForecastPointResponse(BaseModel):
 
 
 class ForecastAnchorResponse(BaseModel):
-    source: Literal["ING", "FRED"]
+    source: Literal["ING", "MUFG", "FRED"]
     date: date
     spot: float
 
@@ -26,7 +33,10 @@ class ForecastMatchingResponse(BaseModel):
 
 
 class InstitutionForecastSourceResponse(BaseModel):
-    institution: Literal["ING"] = "ING"
+    institution: InstitutionName
+    matched_maturity_spot: float
+    weight: Literal[0.5, 1.0]
+    matching: ForecastMatchingResponse
     source_updated_date: date
     source_url: str
     forecast_points: list[ForecastPointResponse]
@@ -36,6 +46,11 @@ class InstitutionForecastSourceResponse(BaseModel):
     is_stale: bool
 
 
+class UnavailableForecastSourceResponse(BaseModel):
+    institution: InstitutionName
+    reason_code: UnavailableReason
+
+
 class MaturityForecastResponse(BaseModel):
     status: Literal["available"] = "available"
     currency_pair: Literal["USD/CNY"] = "USD/CNY"
@@ -43,9 +58,12 @@ class MaturityForecastResponse(BaseModel):
     valuation_date: date
     maturity_date: date
     expected_maturity_spot: float
-    matching: ForecastMatchingResponse
-    source_count: Literal[1] = 1
-    aggregation_status: Literal["single_source_trial"] = "single_source_trial"
-    is_consensus_forecast: Literal[False] = False
+    source_count: Literal[1, 2]
+    aggregation_status: Literal[
+        "equal_weight_consensus",
+        "single_source_fallback",
+    ]
+    is_consensus_forecast: bool
     sources: list[InstitutionForecastSourceResponse]
+    unavailable_sources: list[UnavailableForecastSourceResponse]
     limitations: list[str]

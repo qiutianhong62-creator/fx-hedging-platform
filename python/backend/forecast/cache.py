@@ -5,18 +5,33 @@ from datetime import date, datetime
 from math import isfinite
 from pathlib import Path
 
-from backend.forecast.ing import ING_FORECAST_URL
 from backend.forecast.types import ForecastPoint, InstitutionForecastSnapshot
 
 
-def default_forecast_cache_path() -> Path:
+def _market_data_cache_path(filename: str) -> Path:
     python_root = Path(__file__).resolve().parents[2]
-    return python_root / ".cache" / "market-data" / "ing-usdcny-forecast.json"
+    return python_root / ".cache" / "market-data" / filename
+
+
+def default_ing_forecast_cache_path() -> Path:
+    return _market_data_cache_path("ing-usdcny-forecast.json")
+
+
+def default_mufg_forecast_cache_path() -> Path:
+    return _market_data_cache_path("mufg-usdcny-forecast.json")
 
 
 class JsonForecastCache:
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        institution: str,
+        source_url: str,
+    ) -> None:
         self.path = path
+        self.institution = institution
+        self.source_url = source_url
 
     def load(self) -> InstitutionForecastSnapshot | None:
         try:
@@ -41,9 +56,9 @@ class JsonForecastCache:
             )
             point_dates = [item.date for item in snapshot.points]
             if (
-                snapshot.institution != "ING"
+                snapshot.institution != self.institution
                 or snapshot.currency_pair != "USD/CNY"
-                or snapshot.source_url != ING_FORECAST_URL
+                or snapshot.source_url != self.source_url
                 or snapshot.fetched_at_utc.tzinfo is None
                 or snapshot.source_updated_date > snapshot.fetched_at_utc.date()
                 or len(snapshot.points) < 2

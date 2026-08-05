@@ -8,8 +8,8 @@ from backend.forecast.ing import (
     ING_FORECAST_URL,
     IngForecastProvider,
     parse_ing_forecast_html,
-    parse_quarter_label,
 )
+from backend.forecast.quarters import parse_quarter_end
 
 
 RETRIEVED_AT = datetime(2026, 7, 18, 10, tzinfo=timezone.utc)
@@ -39,13 +39,21 @@ def ing_html(*, updated: str = "16 July", pair: str = "USD/CNY") -> str:
         ("2Q27F", date(2027, 6, 30)),
         ("3Q27F", date(2027, 9, 30)),
         ("4Q27F", date(2027, 12, 31)),
+        ("Q3 2026", date(2026, 9, 30)),
+        ("Q4 2026", date(2026, 12, 31)),
     ],
 )
-def test_parse_quarter_label_uses_natural_quarter_end(
+def test_parse_quarter_end_supports_ing_and_mufg_labels(
     label: str,
     expected: date,
 ) -> None:
-    assert parse_quarter_label(label) == expected
+    assert parse_quarter_end(label) == expected
+
+
+@pytest.mark.parametrize("label", ["Q5 2026", "2026 Q3", "", "3Q26"])
+def test_parse_quarter_end_rejects_unknown_labels(label: str) -> None:
+    with pytest.raises(ForecastSourceInvalidError):
+        parse_quarter_end(label)
 
 
 def test_parser_reads_only_fx_usd_cny_and_resolves_update_year() -> None:

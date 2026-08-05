@@ -1,226 +1,246 @@
-from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
-from types import SimpleNamespace
+from datetime import date, datetime, timezone
 
 import pytest
 
-from backend.forecast.cache import JsonForecastCache
 from backend.forecast.errors import (
-    ForecastFetchError,
+    ForecastHorizonInsufficientError,
     ForecastMaturityInvalidError,
     ForecastSourceInvalidError,
     ForecastSourceStaleError,
     ForecastSourceUnavailableError,
+    ForecastSourcesUnavailableError,
 )
+from backend.forecast.ing import ING_FORECAST_URL
+from backend.forecast.mufg import MUFG_FORECAST_URL
 from backend.forecast.service import MaturityForecastService
-from backend.forecast.types import ForecastPoint, InstitutionForecastSnapshot
+from backend.forecast.types import (
+    ForecastAnchor,
+    ForecastMatch,
+    ForecastPoint,
+    InstitutionForecastSnapshot,
+    InstitutionMaturityEstimate,
+)
 
 
-NOW = datetime(2026, 7, 18, 10, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 4, 10, tzinfo=timezone.utc)
+MATURITY_DATE = date(2026, 11, 15)
 
 
-def snapshot(
-    *,
-    fetched_at: datetime = NOW,
-    updated_on: date = date(2026, 7, 16),
-) -> InstitutionForecastSnapshot:
-    return InstitutionForecastSnapshot(
-        institution="ING",
+def estimate(
+    institution: str,
+    matched_spot: float,
+) -> InstitutionMaturityEstimate:
+    source_url = (
+        ING_FORECAST_URL if institution == "ING" else MUFG_FORECAST_URL
+    )
+    first_spot = matched_spot + 0.02
+    second_spot = matched_spot - 0.02
+    snapshot = InstitutionForecastSnapshot(
+        institution=institution,
         currency_pair="USD/CNY",
-        source_url="https://think.ing.com/forecasts/",
-        source_updated_date=updated_on,
-        fetched_at_utc=fetched_at,
+        source_url=source_url,
+        source_updated_date=date(2026, 7, 20),
+        fetched_at_utc=NOW,
         points=(
-            ForecastPoint(date(2026, 9, 30), 6.74),
-            ForecastPoint(date(2026, 12, 31), 6.70),
-            ForecastPoint(date(2027, 3, 31), 6.68),
+            ForecastPoint(date(2026, 9, 30), first_spot),
+            ForecastPoint(date(2026, 12, 31), second_spot),
         ),
+    )
+    return InstitutionMaturityEstimate(
+        institution=institution,
+        matched=ForecastMatch(
+            expected_spot=matched_spot,
+            method="interpolated",
+            is_system_estimate=True,
+            day_weight=0.5,
+            anchors=(
+                ForecastAnchor(
+                    institution,
+                    date(2026, 9, 30),
+                    first_spot,
+                ),
+                ForecastAnchor(
+                    institution,
+                    date(2026, 12, 31),
+                    second_spot,
+                ),
+            ),
+        ),
+        snapshot=snapshot,
+        cache_status="live_fetch",
+        cache_age_hours=0,
+        is_stale=False,
     )
 
 
-class FakeProvider:
+class FakeInstitutionService:
     def __init__(
         self,
-        result: InstitutionForecastSnapshot | None = None,
+        *,
+        result: InstitutionMaturityEstimate | None = None,
         error: Exception | None = None,
     ) -> None:
-        self.result = result or snapshot()
+        self.result = result
         self.error = error
-        self.calls = 0
+        self.calls: list[tuple[date, date, datetime]] = []
 
-    def fetch(self, retrieved_at_utc: datetime) -> InstitutionForecastSnapshot:
-        self.calls += 1
+    def get_estimate(
+        self,
+        valuation_date: date,
+        maturity_date: date,
+        *,
+        now_utc: datetime,
+    ) -> InstitutionMaturityEstimate:
+        self.calls.append((valuation_date, maturity_date, now_utc))
         if self.error is not None:
             raise self.error
+        assert self.result is not None
         return self.result
 
 
-class FakeMarketService:
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def get_summary(self):
-        self.calls += 1
-        return SimpleNamespace(
-            market_reference=SimpleNamespace(
-                spot=6.7766,
-                observation_date=date(2026, 7, 10),
-            )
-        )
-
-
 def service(
-    tmp_path: Path,
-    provider: FakeProvider,
-    market: FakeMarketService,
+    ing: FakeInstitutionService,
+    mufg: FakeInstitutionService,
 ) -> MaturityForecastService:
     return MaturityForecastService(
-        provider=provider,
-        cache=JsonForecastCache(tmp_path / "forecast.json"),
-        market_history_service=market,
+        institution_services=(("ING", ing), ("MUFG", mufg)),
         now_utc=lambda: NOW,
     )
 
 
-def test_direct_ing_match_does_not_call_fred(tmp_path: Path) -> None:
-    provider = FakeProvider()
-    market = FakeMarketService()
+def test_two_sources_are_matched_first_then_equal_weighted() -> None:
+    ing = FakeInstitutionService(result=estimate("ING", 6.68))
+    mufg = FakeInstitutionService(result=estimate("MUFG", 6.62))
 
-    result = service(tmp_path, provider, market).get_estimate(
-        date(2026, 12, 31)
-    )
+    result = service(ing, mufg).get_estimate(MATURITY_DATE)
 
-    assert provider.calls == 1
-    assert market.calls == 0
-    assert result.expected_maturity_spot == 6.70
-    assert result.matching.method == "direct"
+    assert result.expected_maturity_spot == 6.65
+    assert result.source_count == 2
+    assert result.aggregation_status == "equal_weight_consensus"
+    assert result.is_consensus_forecast is True
+    assert [
+        (item.institution, item.matched_maturity_spot, item.weight)
+        for item in result.sources
+    ] == [
+        ("ING", 6.68, 0.5),
+        ("MUFG", 6.62, 0.5),
+    ]
+    assert result.unavailable_sources == []
+    assert [item.source for item in result.sources[1].matching.anchors] == [
+        "MUFG",
+        "MUFG",
+    ]
+    assert ing.calls == [(NOW.date(), MATURITY_DATE, NOW)]
+    assert mufg.calls == [(NOW.date(), MATURITY_DATE, NOW)]
+
+
+def test_consensus_rounds_result_to_six_decimal_places() -> None:
+    result = service(
+        FakeInstitutionService(result=estimate("ING", 6.1234567)),
+        FakeInstitutionService(result=estimate("MUFG", 6.2345678)),
+    ).get_estimate(MATURITY_DATE)
+
+    assert result.expected_maturity_spot == 6.179013
+
+
+def test_source_matched_spots_hide_binary_float_artifacts() -> None:
+    result = service(
+        FakeInstitutionService(result=estimate("ING", 6.720000000000001)),
+        FakeInstitutionService(result=estimate("MUFG", 6.675000000000001)),
+    ).get_estimate(MATURITY_DATE)
+
+    assert [item.matched_maturity_spot for item in result.sources] == [
+        6.72,
+        6.675,
+    ]
+
+
+def test_consensus_is_reproducible_from_displayed_source_values() -> None:
+    result = service(
+        FakeInstitutionService(result=estimate("ING", 6.0)),
+        FakeInstitutionService(result=estimate("MUFG", 6.0000005)),
+    ).get_estimate(MATURITY_DATE)
+
+    assert [item.matched_maturity_spot for item in result.sources] == [
+        6.0,
+        6.000001,
+    ]
+    assert result.expected_maturity_spot == 6.000001
+
+
+@pytest.mark.parametrize(
+    ("failed_name", "error", "reason_code"),
+    [
+        ("ING", ForecastSourceUnavailableError(), "fetch_failed"),
+        ("MUFG", ForecastSourceInvalidError(), "source_invalid"),
+        ("ING", ForecastSourceStaleError(), "source_stale"),
+        (
+            "MUFG",
+            ForecastHorizonInsufficientError(),
+            "horizon_insufficient",
+        ),
+    ],
+)
+def test_one_failed_source_returns_traceable_fallback(
+    failed_name: str,
+    error: Exception,
+    reason_code: str,
+) -> None:
+    ing = FakeInstitutionService(result=estimate("ING", 6.68))
+    mufg = FakeInstitutionService(result=estimate("MUFG", 6.62))
+    failed = ing if failed_name == "ING" else mufg
+    failed.result = None
+    failed.error = error
+
+    result = service(ing, mufg).get_estimate(MATURITY_DATE)
+
+    expected_available = "MUFG" if failed_name == "ING" else "ING"
     assert result.source_count == 1
-    assert result.aggregation_status == "single_source_trial"
+    assert result.aggregation_status == "single_source_fallback"
     assert result.is_consensus_forecast is False
-    assert result.sources[0].cache_status == "live_fetch"
+    assert result.sources[0].institution == expected_available
+    assert result.sources[0].weight == 1.0
+    assert result.unavailable_sources[0].institution == failed_name
+    assert result.unavailable_sources[0].reason_code == reason_code
+    assert any("不是多机构综合预测" in item for item in result.limitations)
 
 
-def test_between_ing_points_does_not_call_fred(tmp_path: Path) -> None:
-    market = FakeMarketService()
-
-    result = service(tmp_path, FakeProvider(), market).get_estimate(
-        date(2026, 11, 15)
-    )
-
-    assert market.calls == 0
-    assert result.expected_maturity_spot == pytest.approx(6.72)
-    assert [item.source for item in result.matching.anchors] == ["ING", "ING"]
-
-
-def test_before_first_ing_point_calls_fred_and_returns_actual_anchor(
-    tmp_path: Path,
-) -> None:
-    market = FakeMarketService()
-
-    result = service(tmp_path, FakeProvider(), market).get_estimate(
-        date(2026, 8, 15)
-    )
-
-    assert market.calls == 1
-    assert result.matching.anchors[0].source == "FRED"
-    assert result.matching.anchors[0].date == date(2026, 7, 10)
-
-
-def test_daily_cache_avoids_ing_and_still_avoids_unneeded_fred(
-    tmp_path: Path,
-) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
-    cache.save(snapshot(fetched_at=NOW - timedelta(hours=23)))
-    provider = FakeProvider(error=ForecastFetchError())
-    market = FakeMarketService()
-
-    result = service(tmp_path, provider, market).get_estimate(
-        date(2026, 11, 15)
-    )
-
-    assert provider.calls == 0
-    assert market.calls == 0
-    assert result.sources[0].cache_status == "daily_cache"
-
-
-def test_network_failure_uses_cache_through_seven_days(tmp_path: Path) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
-    cache.save(snapshot(
-        fetched_at=NOW - timedelta(days=6),
-        updated_on=date(2026, 7, 10),
-    ))
-
-    result = service(
-        tmp_path,
-        FakeProvider(error=ForecastFetchError()),
-        FakeMarketService(),
-    ).get_estimate(date(2026, 11, 15))
-
-    assert result.sources[0].cache_status == "stale_fallback"
-    assert result.sources[0].is_stale is True
-
-
-def test_network_failure_rejects_cache_older_than_seven_days(
-    tmp_path: Path,
-) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
-    cache.save(snapshot(
-        fetched_at=NOW - timedelta(days=8),
-        updated_on=date(2026, 7, 10),
-    ))
-
-    with pytest.raises(ForecastSourceUnavailableError):
+def test_two_horizon_failures_raise_horizon_insufficient() -> None:
+    with pytest.raises(ForecastHorizonInsufficientError):
         service(
-            tmp_path,
-            FakeProvider(error=ForecastFetchError()),
-            FakeMarketService(),
-        ).get_estimate(date(2026, 11, 15))
+            FakeInstitutionService(error=ForecastHorizonInsufficientError()),
+            FakeInstitutionService(error=ForecastHorizonInsufficientError()),
+        ).get_estimate(MATURITY_DATE)
 
 
-def test_future_dated_cache_is_ignored_and_refetched(tmp_path: Path) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
-    cache.save(snapshot(fetched_at=NOW + timedelta(hours=1)))
-    provider = FakeProvider()
-
-    result = service(
-        tmp_path,
-        provider,
-        FakeMarketService(),
-    ).get_estimate(date(2026, 11, 15))
-
-    assert provider.calls == 1
-    assert result.sources[0].cache_status == "live_fetch"
-
-
-def test_invalid_page_does_not_hide_behind_old_cache(tmp_path: Path) -> None:
-    cache = JsonForecastCache(tmp_path / "forecast.json")
-    cache.save(snapshot(fetched_at=NOW - timedelta(days=2)))
-
-    with pytest.raises(ForecastSourceInvalidError):
+@pytest.mark.parametrize(
+    ("ing_error", "mufg_error"),
+    [
+        (ForecastSourceUnavailableError(), ForecastSourceInvalidError()),
+        (ForecastSourceStaleError(), ForecastSourceUnavailableError()),
+        (
+            ForecastHorizonInsufficientError(),
+            ForecastSourceUnavailableError(),
+        ),
+    ],
+)
+def test_non_horizon_or_mixed_failures_raise_sources_unavailable(
+    ing_error: Exception,
+    mufg_error: Exception,
+) -> None:
+    with pytest.raises(ForecastSourcesUnavailableError):
         service(
-            tmp_path,
-            FakeProvider(error=ForecastSourceInvalidError()),
-            FakeMarketService(),
-        ).get_estimate(date(2026, 11, 15))
+            FakeInstitutionService(error=ing_error),
+            FakeInstitutionService(error=mufg_error),
+        ).get_estimate(MATURITY_DATE)
 
 
-def test_invalid_maturity_does_not_fetch_external_sources(tmp_path: Path) -> None:
-    provider = FakeProvider()
-    market = FakeMarketService()
+def test_invalid_maturity_stops_before_both_sources() -> None:
+    ing = FakeInstitutionService(result=estimate("ING", 6.68))
+    mufg = FakeInstitutionService(result=estimate("MUFG", 6.62))
 
     with pytest.raises(ForecastMaturityInvalidError):
-        service(tmp_path, provider, market).get_estimate(NOW.date())
+        service(ing, mufg).get_estimate(NOW.date())
 
-    assert provider.calls == 0
-    assert market.calls == 0
-
-
-def test_source_update_older_than_45_days_is_rejected(tmp_path: Path) -> None:
-    provider = FakeProvider(
-        result=snapshot(updated_on=NOW.date() - timedelta(days=46))
-    )
-
-    with pytest.raises(ForecastSourceStaleError):
-        service(tmp_path, provider, FakeMarketService()).get_estimate(
-            date(2026, 11, 15)
-        )
+    assert ing.calls == []
+    assert mufg.calls == []

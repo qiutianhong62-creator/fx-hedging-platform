@@ -5,7 +5,10 @@ from fastapi.testclient import TestClient
 from backend.automatic_analysis.service import (
     AutomaticNoHedgeProbabilityService,
 )
-from backend.forecast.errors import ForecastSourceUnavailableError
+from backend.forecast.errors import (
+    ForecastSourceUnavailableError,
+    ForecastSourcesUnavailableError,
+)
 from backend.main import app
 from backend.routes.analysis import (
     get_automatic_no_hedge_probability_service,
@@ -52,11 +55,16 @@ def test_automatic_endpoint_needs_no_assumption_fields() -> None:
     body = response.json()
     assert body["distribution"]["source_type"] == "market_data"
     assert body["distribution"]["is_market_forecast"] is True
-    assert body["distribution"]["assumed_expected_maturity_spot"] == 6.72
+    assert body["distribution"]["assumed_expected_maturity_spot"] == 6.65
     assert body["distribution"]["assumed_annualized_volatility_pct"] == 4.2
-    assert body["data_sources"]["forecast"]["sources"][0][
-        "institution"
-    ] == "ING"
+    assert [
+        item["institution"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == ["ING", "MUFG"]
+    assert [
+        item["weight"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == [0.5, 0.5]
     assert body["data_sources"]["market_history"]["source"][
         "provider"
     ] == "FRED"
@@ -82,4 +90,27 @@ def test_automatic_endpoint_keeps_forecast_error_contract() -> None:
     assert response.status_code == 503
     assert response.json()["error"]["code"] == (
         "forecast_source_unavailable"
+    )
+
+
+def test_automatic_endpoint_returns_aggregate_forecast_error() -> None:
+    app.dependency_overrides[
+        get_automatic_no_hedge_probability_service
+    ] = lambda: AutomaticNoHedgeProbabilityService(
+        forecast_service=FakeForecastService(
+            error=ForecastSourcesUnavailableError()
+        ),
+        market_history_service=FakeMarketService(),
+    )
+    try:
+        response = client.post(
+            "/api/v1/analysis/no-hedge/automatic-probability",
+            json=valid_payload(),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == (
+        "forecast_sources_unavailable"
     )

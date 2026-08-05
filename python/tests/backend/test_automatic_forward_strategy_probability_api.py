@@ -5,7 +5,10 @@ from fastapi.testclient import TestClient
 from backend.automatic_analysis.service import (
     AutomaticForwardStrategyProbabilityService,
 )
-from backend.forecast.errors import ForecastSourceUnavailableError
+from backend.forecast.errors import (
+    ForecastSourceUnavailableError,
+    ForecastSourcesUnavailableError,
+)
 from backend.main import app
 from backend.routes.forward_strategy import (
     get_automatic_forward_strategy_probability_service,
@@ -54,14 +57,18 @@ def test_endpoint_returns_strategy_comparison_without_assumptions() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["distribution"]["source_type"] == "market_data"
-    assert body["no_hedge"]["expected_amount_cny"] == 6_720_000
-    assert body["forward_strategy"]["expected_amount_cny"] == 6_760_000
+    assert body["no_hedge"]["expected_amount_cny"] == 6_650_000
+    assert body["forward_strategy"]["expected_amount_cny"] == 6_725_000
     assert 0 <= body["comparison"]["probability_strategy_better"] <= 1
     assert body["forward_strategy"]["coverage"]["coverage_ratio"] == 0.5
-    assert (
-        body["data_sources"]["forecast"]["sources"][0]["institution"]
-        == "ING"
-    )
+    assert [
+        item["institution"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == ["ING", "MUFG"]
+    assert [
+        item["weight"]
+        for item in body["data_sources"]["forecast"]["sources"]
+    ] == [0.5, 0.5]
     assert (
         body["data_sources"]["market_history"]["source"]["provider"]
         == "FRED"
@@ -92,6 +99,29 @@ def test_endpoint_preserves_forecast_error_contract() -> None:
     assert response.status_code == 503
     assert response.json()["error"]["code"] == (
         "forecast_source_unavailable"
+    )
+
+
+def test_endpoint_returns_aggregate_forecast_error() -> None:
+    app.dependency_overrides[
+        get_automatic_forward_strategy_probability_service
+    ] = lambda: AutomaticForwardStrategyProbabilityService(
+        forecast_service=FakeForecastService(
+            error=ForecastSourcesUnavailableError()
+        ),
+        market_history_service=FakeMarketService(),
+    )
+    try:
+        response = client.post(
+            "/api/v1/analysis/forward-strategy/automatic-probability",
+            json=valid_payload(),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == (
+        "forecast_sources_unavailable"
     )
 
 

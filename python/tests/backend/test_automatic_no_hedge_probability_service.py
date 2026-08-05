@@ -21,31 +21,78 @@ def forecast_result() -> MaturityForecastResponse:
         {
             "valuation_date": VALUATION_DATE,
             "maturity_date": MATURITY_DATE,
-            "expected_maturity_spot": 6.72,
-            "matching": {
-                "method": "interpolated",
-                "is_system_estimate": True,
-                "day_weight": 0.5,
-                "anchors": [
-                    {"source": "ING", "date": "2026-09-30", "spot": 6.74},
-                    {"source": "ING", "date": "2026-12-31", "spot": 6.70},
-                ],
-            },
+            "expected_maturity_spot": 6.65,
+            "source_count": 2,
+            "aggregation_status": "equal_weight_consensus",
+            "is_consensus_forecast": True,
             "sources": [
                 {
+                    "institution": "ING",
+                    "matched_maturity_spot": 6.68,
+                    "weight": 0.5,
+                    "matching": {
+                        "method": "interpolated",
+                        "is_system_estimate": True,
+                        "day_weight": 0.5,
+                        "anchors": [
+                            {
+                                "source": "ING",
+                                "date": "2026-09-30",
+                                "spot": 6.70,
+                            },
+                            {
+                                "source": "ING",
+                                "date": "2026-12-31",
+                                "spot": 6.66,
+                            },
+                        ],
+                    },
                     "source_updated_date": "2026-07-16",
                     "source_url": "https://think.ing.com/forecasts/",
                     "forecast_points": [
-                        {"date": "2026-09-30", "spot": 6.74},
-                        {"date": "2026-12-31", "spot": 6.70},
+                        {"date": "2026-09-30", "spot": 6.70},
+                        {"date": "2026-12-31", "spot": 6.66},
                     ],
                     "cache_status": "daily_cache",
                     "fetched_at_utc": "2026-07-18T10:00:00Z",
                     "cache_age_hours": 2.0,
                     "is_stale": False,
-                }
+                },
+                {
+                    "institution": "MUFG",
+                    "matched_maturity_spot": 6.62,
+                    "weight": 0.5,
+                    "matching": {
+                        "method": "interpolated",
+                        "is_system_estimate": True,
+                        "day_weight": 0.5,
+                        "anchors": [
+                            {
+                                "source": "MUFG",
+                                "date": "2026-09-30",
+                                "spot": 6.65,
+                            },
+                            {
+                                "source": "MUFG",
+                                "date": "2026-12-31",
+                                "spot": 6.59,
+                            },
+                        ],
+                    },
+                    "source_updated_date": "2026-07-03",
+                    "source_url": "https://mufgresearch.com/forecasts/",
+                    "forecast_points": [
+                        {"date": "2026-09-30", "spot": 6.65},
+                        {"date": "2026-12-31", "spot": 6.59},
+                    ],
+                    "cache_status": "live_fetch",
+                    "fetched_at_utc": "2026-08-04T10:00:00Z",
+                    "cache_age_hours": 0.0,
+                    "is_stale": False,
+                },
             ],
-            "limitations": ["单一机构试验"],
+            "unavailable_sources": [],
+            "limitations": ["当前仅包含ING和MUFG两家机构"],
         }
     )
 
@@ -108,7 +155,7 @@ def input_payload(target_cny: float | None = 6_800_000) -> AnalysisInput:
     )
 
 
-def test_automatic_analysis_uses_ing_spot_and_fred_volatility() -> None:
+def test_automatic_analysis_uses_consensus_spot_and_fred_volatility() -> None:
     forecast = FakeForecastService()
     market = FakeMarketService()
     service = AutomaticNoHedgeProbabilityService(
@@ -120,14 +167,22 @@ def test_automatic_analysis_uses_ing_spot_and_fred_volatility() -> None:
 
     assert forecast.calls == [MATURITY_DATE]
     assert market.calls == 1
-    assert result.expected_result.spot == 6.72
-    assert result.expected_result.amount_cny == 6_720_000
-    assert result.distribution.assumed_expected_maturity_spot == 6.72
+    assert result.expected_result.spot == 6.65
+    assert result.expected_result.amount_cny == 6_650_000
+    assert result.distribution.assumed_expected_maturity_spot == 6.65
     assert result.distribution.assumed_annualized_volatility_pct == 4.2
     assert result.distribution.horizon_days == 180
     assert result.distribution.source_type == "market_data"
     assert result.distribution.is_market_forecast is True
     assert result.target_probability is not None
+    assert [item.institution for item in result.data_sources.forecast.sources] == [
+        "ING",
+        "MUFG",
+    ]
+    assert [item.weight for item in result.data_sources.forecast.sources] == [
+        0.5,
+        0.5,
+    ]
     assert result.data_sources.forecast == forecast_result()
     assert result.data_sources.market_history == market_result()
 

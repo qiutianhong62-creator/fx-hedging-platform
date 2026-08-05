@@ -15,6 +15,8 @@
 - 重复覆盖和过度套保检查
 - 到期汇率情景分析
 - 人民币收入保护与机会成本解释
+- ING 与 MUFG 的 USD/CNY 到期汇率综合预测
+- 不套保与远期策略的自动概率分析
 - Python 计算引擎及单元测试
 - 为期权、期货、掉期和货币市场套保预留产品接口
 
@@ -130,4 +132,23 @@ POST /api/v1/analysis/forward-strategy/automatic-probability
 
 用户只输入敞口、到期日、可选目标金额和真实远期报价。系统自动读取当前接入的机构预测与历史波动率，并在同一概率分布下返回不套保和远期策略的预计金额、50%与90%金额范围、目标达标概率、策略更优概率和范围变化。
 
-当前预测仍是单一机构试验，不代表多机构共识，也不构成交易建议。
+### 第九阶段：ING + MUFG 综合预测
+
+系统分别读取 ING 与 MUFG 的公开 USD/CNY 季度预测，分别换算到用户到期日，再以 50%/50% 等权生成预计到期汇率。若只有一家来源可用，系统会返回 `single_source_fallback`、100% 权重和另一来源的失败原因；两家都不可用时不会编造预测。
+
+启动后端后，在 `http://127.0.0.1:8000/docs` 测试：
+
+```text
+GET /api/v1/forecasts/usd-cny/maturity-estimate
+```
+
+把 `maturity_date` 填为当前日期之后 365 天以内，并且不超过机构最远预测日期的日期。正常综合结果应看到：
+
+```text
+aggregation_status = equal_weight_consensus
+source_count = 2
+ING weight = 0.5
+MUFG weight = 0.5
+```
+
+机构预测和概率模型都可能与实际结果明显不同，结果不构成交易或套保建议。
