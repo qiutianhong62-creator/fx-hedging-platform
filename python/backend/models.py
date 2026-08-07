@@ -111,6 +111,33 @@ class TargetProbability(BaseModel):
     probability_missed: float
 
 
+class NoHedgeProbabilityProfileInterval(BaseModel):
+    lower_spot: float
+    upper_spot: float
+    interval_probability: float
+    probability_below_upper: float
+    probability_above_upper: float
+    minimum_amount_cny: float
+    maximum_amount_cny: float
+
+
+class NoHedgeProbabilityProfileTail(BaseModel):
+    direction: Literal["below", "above"]
+    boundary_spot: float
+    probability: float
+    boundary_amount_cny: float
+
+
+class NoHedgeProbabilityProfile(BaseModel):
+    core_lower_spot: float
+    core_upper_spot: float
+    core_probability: float
+    bucket_count: int
+    intervals: list[NoHedgeProbabilityProfileInterval]
+    lower_tail: NoHedgeProbabilityProfileTail
+    upper_tail: NoHedgeProbabilityProfileTail
+
+
 class NoHedgeProbabilityResponse(BaseModel):
     status: Literal["calculated"] = "calculated"
     quote_convention: Literal["CNY per 1 USD"] = "CNY per 1 USD"
@@ -120,3 +147,4 @@ class NoHedgeProbabilityResponse(BaseModel):
     typical_range_50: ProbabilityRange
     wide_range_90: ProbabilityRange
     target_probability: TargetProbability | None
+    probability_profile: NoHedgeProbabilityProfile

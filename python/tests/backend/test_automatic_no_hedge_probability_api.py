@@ -68,6 +68,11 @@ def test_automatic_endpoint_needs_no_assumption_fields() -> None:
     assert body["data_sources"]["market_history"]["source"][
         "provider"
     ] == "FRED"
+    assert body["probability_profile"]["bucket_count"] == 20
+    assert len(body["probability_profile"]["intervals"]) == 20
+    assert body["data_sources"]["forecast"]["aggregation_status"] == (
+        "equal_weight_consensus"
+    )
 
 
 def test_automatic_endpoint_keeps_forecast_error_contract() -> None:
