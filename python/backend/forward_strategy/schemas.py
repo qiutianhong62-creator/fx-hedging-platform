@@ -168,6 +168,39 @@ class ForwardStrategyProbabilityComparison(BaseModel):
     wide_range_90_width: RangeWidthComparison
 
 
+class ProfileAmountRange(BaseModel):
+    minimum_amount_cny: float
+    maximum_amount_cny: float
+
+
+class ForwardProbabilityProfileInterval(BaseModel):
+    lower_spot: float
+    upper_spot: float
+    interval_probability: float
+    probability_below_upper: float
+    probability_above_upper: float
+    no_hedge: ProfileAmountRange
+    forward_strategy: ProfileAmountRange
+
+
+class ForwardProbabilityProfileTail(BaseModel):
+    direction: Literal["below", "above"]
+    boundary_spot: float
+    probability: float
+    no_hedge_amount_cny: float
+    forward_strategy_amount_cny: float
+
+
+class ForwardProbabilityProfile(BaseModel):
+    core_lower_spot: float
+    core_upper_spot: float
+    core_probability: float
+    bucket_count: int
+    intervals: list[ForwardProbabilityProfileInterval]
+    lower_tail: ForwardProbabilityProfileTail
+    upper_tail: ForwardProbabilityProfileTail
+
+
 class ForwardStrategyProbabilityResponse(BaseModel):
     status: Literal["calculated"] = "calculated"
     quote_convention: Literal["CNY per 1 USD"] = "CNY per 1 USD"
@@ -176,3 +209,4 @@ class ForwardStrategyProbabilityResponse(BaseModel):
     no_hedge: StrategyProbabilityResult
     forward_strategy: ForwardStrategyProbabilityResult
     comparison: ForwardStrategyProbabilityComparison
+    probability_profile: ForwardProbabilityProfile

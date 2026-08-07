@@ -77,6 +77,18 @@ def test_endpoint_returns_strategy_comparison_without_assumptions() -> None:
     assert "历史波动率" in body["limitations"][0]
     assert "模型估算" in body["limitations"][1]
     assert "不构成交易或套保建议" in body["limitations"][2]
+    profile = body["probability_profile"]
+    assert profile["bucket_count"] == 20
+    assert len(profile["intervals"]) == 20
+    assert profile["lower_tail"]["direction"] == "below"
+    assert profile["upper_tail"]["direction"] == "above"
+    assert set(profile["intervals"][0]) >= {
+        "interval_probability",
+        "probability_below_upper",
+        "probability_above_upper",
+        "no_hedge",
+        "forward_strategy",
+    }
 
 
 def test_endpoint_preserves_forecast_error_contract() -> None:

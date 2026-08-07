@@ -257,3 +257,53 @@ def test_range_change_can_reduce_stay_equal_or_increase(
     )
 
     assert result.comparison.wide_range_90_width.change == expected_change
+
+
+def test_profile_compares_no_hedge_and_strategy_on_same_spot_buckets() -> None:
+    result = calculate(request())
+    profile = result.probability_profile
+
+    assert profile.bucket_count == 20
+    assert len(profile.intervals) == 20
+    first = profile.intervals[0]
+    assert first.no_hedge.minimum_amount_cny < (
+        first.no_hedge.maximum_amount_cny
+    )
+    assert first.forward_strategy.minimum_amount_cny < (
+        first.forward_strategy.maximum_amount_cny
+    )
+    assert profile.lower_tail.no_hedge_amount_cny == pytest.approx(
+        profile.lower_tail.boundary_spot * 1_000_000
+    )
+    total = (
+        profile.lower_tail.probability
+        + sum(item.interval_probability for item in profile.intervals)
+        + profile.upper_tail.probability
+    )
+    assert total == pytest.approx(1.0)
+
+
+def test_full_hedge_profile_has_fixed_strategy_amount() -> None:
+    result = calculate(
+        request(
+            legs=[{"notional_usd": 1_000_000, "forward_rate": 6.80}]
+        )
+    )
+
+    for interval in result.probability_profile.intervals:
+        assert interval.forward_strategy.minimum_amount_cny == 6_800_000
+        assert interval.forward_strategy.maximum_amount_cny == 6_800_000
+
+
+def test_overhedged_profile_keeps_every_strategy_range_sorted() -> None:
+    result = calculate(
+        request(
+            legs=[{"notional_usd": 1_500_000, "forward_rate": 6.80}]
+        )
+    )
+
+    assert result.forward_strategy.coverage.status == "over_hedged"
+    for interval in result.probability_profile.intervals:
+        assert interval.forward_strategy.minimum_amount_cny <= (
+            interval.forward_strategy.maximum_amount_cny
+        )
