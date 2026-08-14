@@ -6,6 +6,9 @@ from typing import Literal
 from backend.forward_strategy.schemas import (
     AmountProbabilityRange,
     ForwardCoverage,
+    ForwardProbabilityProfile,
+    ForwardProbabilityProfileInterval,
+    ForwardProbabilityProfileTail,
     ForwardProbabilityDistribution,
     ForwardStrategyProbabilityComparison,
     ForwardStrategyProbabilityRequest,
@@ -13,6 +16,7 @@ from backend.forward_strategy.schemas import (
     ForwardStrategyProbabilityResult,
     ForwardStrategyScenarioRequest,
     ForwardTargetProbability,
+    ProfileAmountRange,
     RangeChange,
     RangeWidthComparison,
     SpotProbabilityRange,
@@ -25,6 +29,11 @@ from backend.models import ExposureType, ResultKind
 from backend.services.distributions import (
     LognormalDistribution,
     build_lognormal_distribution,
+)
+from backend.services.probability_profile import (
+    SpotProbabilityBucket,
+    SpotProbabilityProfile,
+    build_spot_probability_profile,
 )
 from backend.services.scenario_common import cny_amount
 
@@ -184,6 +193,82 @@ def _spot_range(
     )
 
 
+def _profile_amount_range(
+    bucket: SpotProbabilityBucket,
+    amounts_by_spot: dict[float, ScenarioAmounts],
+    *,
+    strategy: bool,
+) -> ProfileAmountRange:
+    lower = amounts_by_spot[bucket.lower_spot]
+    upper = amounts_by_spot[bucket.upper_spot]
+    values = (
+        [lower.strategy_amount_cny, upper.strategy_amount_cny]
+        if strategy
+        else [lower.no_hedge_amount_cny, upper.no_hedge_amount_cny]
+    )
+    return ProfileAmountRange(
+        minimum_amount_cny=min(values),
+        maximum_amount_cny=max(values),
+    )
+
+
+def _forward_probability_profile(
+    payload: ForwardStrategyProbabilityRequest,
+    spot_profile: SpotProbabilityProfile,
+) -> ForwardProbabilityProfile:
+    boundary_spots = [spot_profile.core_lower_spot]
+    boundary_spots.extend(
+        interval.upper_spot for interval in spot_profile.intervals
+    )
+    amounts_by_spot = {
+        spot: scenario_amounts_at_spot(payload, spot)
+        for spot in boundary_spots
+    }
+    intervals = [
+        ForwardProbabilityProfileInterval(
+            lower_spot=interval.lower_spot,
+            upper_spot=interval.upper_spot,
+            interval_probability=interval.interval_probability,
+            probability_below_upper=interval.probability_below_upper,
+            probability_above_upper=interval.probability_above_upper,
+            no_hedge=_profile_amount_range(
+                interval,
+                amounts_by_spot,
+                strategy=False,
+            ),
+            forward_strategy=_profile_amount_range(
+                interval,
+                amounts_by_spot,
+                strategy=True,
+            ),
+        )
+        for interval in spot_profile.intervals
+    ]
+    lower_amounts = amounts_by_spot[spot_profile.core_lower_spot]
+    upper_amounts = amounts_by_spot[spot_profile.core_upper_spot]
+    return ForwardProbabilityProfile(
+        core_lower_spot=spot_profile.core_lower_spot,
+        core_upper_spot=spot_profile.core_upper_spot,
+        core_probability=spot_profile.core_probability,
+        bucket_count=spot_profile.bucket_count,
+        intervals=intervals,
+        lower_tail=ForwardProbabilityProfileTail(
+            direction=spot_profile.lower_tail.direction,
+            boundary_spot=spot_profile.lower_tail.boundary_spot,
+            probability=spot_profile.lower_tail.probability,
+            no_hedge_amount_cny=lower_amounts.no_hedge_amount_cny,
+            forward_strategy_amount_cny=lower_amounts.strategy_amount_cny,
+        ),
+        upper_tail=ForwardProbabilityProfileTail(
+            direction=spot_profile.upper_tail.direction,
+            boundary_spot=spot_profile.upper_tail.boundary_spot,
+            probability=spot_profile.upper_tail.probability,
+            no_hedge_amount_cny=upper_amounts.no_hedge_amount_cny,
+            forward_strategy_amount_cny=upper_amounts.strategy_amount_cny,
+        ),
+    )
+
+
 def calculate_forward_strategy_probability(
     payload: ForwardStrategyProbabilityRequest,
     *,
@@ -199,6 +284,7 @@ def calculate_forward_strategy_probability(
         maturity_date=payload.maturity_date,
         valuation_date=valuation_date,
     )
+    spot_profile = build_spot_probability_profile(distribution)
     expected = scenario_amounts_at_spot(payload, expected_maturity_spot)
     typical_spot = _spot_range(
         distribution,
@@ -311,5 +397,9 @@ def calculate_forward_strategy_probability(
                 no_hedge_wide,
                 strategy_wide,
             ),
+        ),
+        probability_profile=_forward_probability_profile(
+            payload,
+            spot_profile,
         ),
     )

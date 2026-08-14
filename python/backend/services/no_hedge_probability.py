@@ -6,6 +6,9 @@ from backend.models import (
     DistributionMetadata,
     ExpectedResult,
     ExposureType,
+    NoHedgeProbabilityProfile,
+    NoHedgeProbabilityProfileInterval,
+    NoHedgeProbabilityProfileTail,
     NoHedgeProbabilityRequest,
     NoHedgeProbabilityResponse,
     NoHedgeScenarioRequest,
@@ -18,6 +21,9 @@ from backend.services.distributions import (
     build_lognormal_distribution,
 )
 from backend.services.no_hedge import calculate_no_hedge_scenario
+from backend.services.probability_profile import (
+    build_spot_probability_profile,
+)
 
 
 def _amount_at_spot(
@@ -81,6 +87,58 @@ def _target_probability(
     )
 
 
+def _no_hedge_probability_profile(
+    payload: NoHedgeProbabilityRequest,
+    distribution: LognormalDistribution,
+) -> NoHedgeProbabilityProfile:
+    spot_profile = build_spot_probability_profile(distribution)
+    intervals = []
+    for interval in spot_profile.intervals:
+        lower_amount = _amount_at_spot(payload, interval.lower_spot)
+        upper_amount = _amount_at_spot(payload, interval.upper_spot)
+        intervals.append(
+            NoHedgeProbabilityProfileInterval(
+                lower_spot=interval.lower_spot,
+                upper_spot=interval.upper_spot,
+                interval_probability=interval.interval_probability,
+                probability_below_upper=(
+                    interval.probability_below_upper
+                ),
+                probability_above_upper=(
+                    interval.probability_above_upper
+                ),
+                minimum_amount_cny=min(lower_amount, upper_amount),
+                maximum_amount_cny=max(lower_amount, upper_amount),
+            )
+        )
+
+    return NoHedgeProbabilityProfile(
+        core_lower_spot=spot_profile.core_lower_spot,
+        core_upper_spot=spot_profile.core_upper_spot,
+        core_probability=spot_profile.core_probability,
+        bucket_count=spot_profile.bucket_count,
+        intervals=intervals,
+        lower_tail=NoHedgeProbabilityProfileTail(
+            direction=spot_profile.lower_tail.direction,
+            boundary_spot=spot_profile.lower_tail.boundary_spot,
+            probability=spot_profile.lower_tail.probability,
+            boundary_amount_cny=_amount_at_spot(
+                payload,
+                spot_profile.lower_tail.boundary_spot,
+            ),
+        ),
+        upper_tail=NoHedgeProbabilityProfileTail(
+            direction=spot_profile.upper_tail.direction,
+            boundary_spot=spot_profile.upper_tail.boundary_spot,
+            probability=spot_profile.upper_tail.probability,
+            boundary_amount_cny=_amount_at_spot(
+                payload,
+                spot_profile.upper_tail.boundary_spot,
+            ),
+        ),
+    )
+
+
 def calculate_no_hedge_probability(
     payload: NoHedgeProbabilityRequest,
     *,
@@ -135,4 +193,8 @@ def calculate_no_hedge_probability(
             upper_percentile=0.95,
         ),
         target_probability=_target_probability(payload, distribution),
+        probability_profile=_no_hedge_probability_profile(
+            payload,
+            distribution,
+        ),
     )

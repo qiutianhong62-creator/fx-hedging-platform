@@ -51,6 +51,14 @@ def test_probability_endpoint_returns_assumption_analysis() -> None:
     assert body["target_probability"]["probability_missed"] == pytest.approx(
         0.5099725182
     )
+    profile = body["probability_profile"]
+    assert profile["bucket_count"] == 20
+    assert len(profile["intervals"]) == 20
+    assert profile["lower_tail"]["direction"] == "below"
+    assert profile["upper_tail"]["direction"] == "above"
+    assert profile["intervals"][0]["minimum_amount_cny"] < (
+        profile["intervals"][0]["maximum_amount_cny"]
+    )
 
 
 def test_probability_endpoint_allows_target_to_be_omitted() -> None:

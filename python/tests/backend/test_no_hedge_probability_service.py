@@ -149,3 +149,32 @@ def test_probability_analysis_can_mark_automatic_market_inputs() -> None:
 
     assert result.distribution.source_type == "market_data"
     assert result.distribution.is_market_forecast is True
+
+
+def test_probability_profile_contains_amount_ranges_and_open_tails() -> None:
+    result = calculate_no_hedge_probability(
+        make_payload(),
+        valuation_date=VALUATION_DATE,
+    )
+    profile = result.probability_profile
+
+    assert profile.bucket_count == 20
+    assert len(profile.intervals) == 20
+    first = profile.intervals[0]
+    assert first.minimum_amount_cny == pytest.approx(
+        first.lower_spot * 1_000_000
+    )
+    assert first.maximum_amount_cny == pytest.approx(
+        first.upper_spot * 1_000_000
+    )
+    assert profile.lower_tail.direction == "below"
+    assert profile.lower_tail.boundary_amount_cny == pytest.approx(
+        profile.lower_tail.boundary_spot * 1_000_000
+    )
+    assert profile.upper_tail.direction == "above"
+    total = (
+        profile.lower_tail.probability
+        + sum(item.interval_probability for item in profile.intervals)
+        + profile.upper_tail.probability
+    )
+    assert total == pytest.approx(1.0)
