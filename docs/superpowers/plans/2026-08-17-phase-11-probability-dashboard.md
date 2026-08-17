@@ -705,7 +705,7 @@ git commit -m "feat: add typed forward probability client"
 - Create: `tests/probability-dashboard.test.ts`
 
 **Interfaces:**
-- Produces: `createInitialDraft`, `validateDraft`, `buildRequest`, `coverageSummary`, `selectCoreIntervals`, `allProbabilityRows`, and display formatters.
+- Produces: `createInitialDraft`, `validateDraft`, `buildRequest`, `coverageSummary`, `selectCoreIntervals`, and display formatters.
 - Consumes: types from `lib/api/forwardProbability.ts`.
 
 - [ ] **Step 1: Write failing view-model tests**
@@ -719,6 +719,7 @@ import test from "node:test";
 import {
   buildRequest,
   coverageSummary,
+  formatProbability,
   selectCoreIntervals,
   validateDraft,
 } from "../lib/analysis/probabilityDashboard.ts";
@@ -732,6 +733,17 @@ const draft = {
     { id: "forward-2", notionalUsd: 200_000, forwardRate: 6.75 },
   ],
 };
+
+const intervalsFixture = Array.from({ length: 20 }, (_, index) => ({
+  lower_spot: 6.4 + index * 0.01,
+  upper_spot: 6.41 + index * 0.01,
+  interval_probability: index / 100,
+  probability_below_upper: index / 20,
+  probability_above_upper: 1 - index / 20,
+  no_hedge: { minimum_amount_cny: 1, maximum_amount_cny: 2 },
+  forward_strategy: { minimum_amount_cny: 2, maximum_amount_cny: 3 },
+  strategy_minus_no_hedge: { minimum_amount_cny: 1, maximum_amount_cny: 1 },
+}));
 
 test("builds the fixed USD receivable request without a target", () => {
   assert.deepEqual(buildRequest(draft, null), {
@@ -768,20 +780,10 @@ test("validation rejects invalid fields but not over-hedging", () => {
 });
 
 test("selects eight highest probabilities then restores spot order", () => {
-  const intervals = Array.from({ length: 20 }, (_, index) => ({
-    lower_spot: 6.4 + index * 0.01,
-    upper_spot: 6.41 + index * 0.01,
-    interval_probability: index / 100,
-    probability_below_upper: index / 20,
-    probability_above_upper: 1 - index / 20,
-    no_hedge: { minimum_amount_cny: 1, maximum_amount_cny: 2 },
-    forward_strategy: { minimum_amount_cny: 2, maximum_amount_cny: 3 },
-    strategy_minus_no_hedge: { minimum_amount_cny: 1, maximum_amount_cny: 1 },
-  }));
-  const selected = selectCoreIntervals(intervals, 8);
+  const selected = selectCoreIntervals(intervalsFixture, 8);
   assert.deepEqual(
     selected.map((item) => item.lower_spot),
-    intervals.slice(12).map((item) => item.lower_spot),
+    intervalsFixture.slice(12).map((item) => item.lower_spot),
   );
 });
 ```
@@ -815,8 +817,6 @@ test("tiny nonzero probability is not formatted as zero", () => {
   assert.equal(formatProbability(0.0002), "<0.1%");
 });
 ```
-
-Define `intervalsFixture` once at the top of the test file using the 20-interval factory from the preceding selection test, then reuse it in both selection tests.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -945,7 +945,7 @@ export function formatProbability(value: number): string {
 }
 ```
 
-Also export `createInitialDraft`, `formatCnyWan`, `formatFullCny`, `formatUsd`, `formatSpot`, `mostLikelyInterval`, and `allProbabilityRows` with the display rules from the design. `buildRequest` must not accept an exposure type argument.
+Also export `createInitialDraft`, `formatCnyWan`, `formatFullCny`, `formatUsd`, and `formatSpot` with the display rules from the design. `buildRequest` must not accept an exposure type argument. `mostLikelyInterval` and `allProbabilityRows` are intentionally deferred to Task 6 so their tests can be observed failing first.
 
 - [ ] **Step 4: Run unit tests and build**
 
@@ -1180,6 +1180,33 @@ git commit -m "feat: replace homepage with probability inputs"
 Add tests proving:
 
 ```typescript
+const intervalFixture = [
+  { ...intervalsFixture[0], lower_spot: 6.55, upper_spot: 6.60, interval_probability: 0.10 },
+  { ...intervalsFixture[1], lower_spot: 6.60, upper_spot: 6.65, interval_probability: 0.141 },
+  { ...intervalsFixture[2], lower_spot: 6.65, upper_spot: 6.70, interval_probability: 0.12 },
+];
+const profileFixture = {
+  core_lower_spot: intervalsFixture[0].lower_spot,
+  core_upper_spot: intervalsFixture[19].upper_spot,
+  core_probability: 0.98,
+  bucket_count: 20,
+  intervals: intervalsFixture,
+  lower_tail: {
+    direction: "below" as const,
+    boundary_spot: intervalsFixture[0].lower_spot,
+    probability: 0.01,
+    no_hedge_amount_cny: 6_400_000,
+    forward_strategy_amount_cny: 6_600_000,
+  },
+  upper_tail: {
+    direction: "above" as const,
+    boundary_spot: intervalsFixture[19].upper_spot,
+    probability: 0.01,
+    no_hedge_amount_cny: 7_200_000,
+    forward_strategy_amount_cny: 7_000_000,
+  },
+};
+
 test("most likely interval uses interval probability not an exact spot", () => {
   const mostLikely = mostLikelyInterval(intervalFixture);
   assert.equal(mostLikely.lower_spot, 6.6);
