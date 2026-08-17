@@ -20,6 +20,9 @@ import { AnalysisInputPanel } from "./AnalysisInputPanel";
 import { AnalysisSummary } from "./AnalysisSummary";
 import { DataSourceStatus } from "./DataSourceStatus";
 import { ProbabilityComparisonTable } from "./ProbabilityComparisonTable";
+import { ProbabilityDistributionChart } from "./ProbabilityDistributionChart";
+import { RiskNotices } from "./RiskNotices";
+import { TargetAnalysisPanel } from "./TargetAnalysisPanel";
 
 type DashboardStatus =
   | "idle"
@@ -37,13 +40,29 @@ export function ProbabilityDashboard() {
   const [response, setResponse] =
     useState<AutomaticForwardProbabilityResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [targetError, setTargetError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
   const legCounter = useRef(1);
 
   const coverage = useMemo(() => coverageSummary(draft), [draft]);
 
   const markChanged = () => {
-    if (response) setIsStale(true);
+    if (response) {
+      setIsStale(true);
+      setResponse((current) =>
+        current
+          ? {
+              ...current,
+              no_hedge: { ...current.no_hedge, target_probability: null },
+              forward_strategy: {
+                ...current.forward_strategy,
+                target_probability: null,
+              },
+            }
+          : current,
+      );
+    }
+    setTargetError(null);
   };
 
   const updateDraft = (patch: Partial<AnalysisDraft>) => {
@@ -121,6 +140,33 @@ export function ProbabilityDashboard() {
     }
   };
 
+  const runTargetAnalysis = async () => {
+    if (
+      draft.targetCny === null ||
+      !Number.isFinite(draft.targetCny) ||
+      draft.targetCny <= 0
+    ) {
+      setTargetError("目标人民币金额必须大于 0");
+      return;
+    }
+    setStatus("loading_target");
+    setTargetError(null);
+    try {
+      const nextResponse = await requestForwardProbability(
+        buildRequest(draft, draft.targetCny),
+      );
+      setResponse(nextResponse);
+      setStatus("success");
+    } catch (error) {
+      const message =
+        error instanceof ForwardProbabilityApiError
+          ? error.message
+          : "目标概率计算失败，请重试。";
+      setTargetError(message);
+      setStatus("success");
+    }
+  };
+
   return (
     <main className="probability-dashboard">
       <header className="dashboard-header">
@@ -155,10 +201,22 @@ export function ProbabilityDashboard() {
         onSubmit={runInitialAnalysis}
       />
 
+      {!response && (
+        <aside className="workflow-preview" aria-label="后续分析步骤">
+          <strong>接下来会看到什么？</strong>
+          <span>先查看分析结果，再填写目标人民币金额。</span>
+          <span>概率分布图作为表格的辅助说明，精确数字以表格为准。</span>
+          <span>结果不构成银行报价、交易建议或收益保证。</span>
+        </aside>
+      )}
+
       {errorMessage && (
         <section className="status-error" role="alert">
           <strong>这次分析没有完成</strong>
           <p>{errorMessage}</p>
+          {status === "connection_error" && (
+            <p>请先启动本地 Python 后端服务，然后保留当前输入并再次点击“开始概率分析”。</p>
+          )}
         </section>
       )}
 
@@ -171,6 +229,20 @@ export function ProbabilityDashboard() {
           <DataSourceStatus response={response} />
           <AnalysisSummary response={response} />
           <ProbabilityComparisonTable response={response} />
+          <ProbabilityDistributionChart response={response} />
+          <TargetAnalysisPanel
+            targetCny={draft.targetCny}
+            loading={status === "loading_target"}
+            error={targetError}
+            noHedge={response.no_hedge.target_probability}
+            strategy={response.forward_strategy.target_probability}
+            onTargetChange={(targetCny) => {
+              setDraft((current) => ({ ...current, targetCny }));
+              setTargetError(null);
+            }}
+            onSubmit={runTargetAnalysis}
+          />
+          <RiskNotices response={response} />
         </div>
       )}
 

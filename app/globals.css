@@ -6,6 +6,7 @@
   --teal: #087f73;
   --teal-dark: #075f58;
   --teal-soft: #dcefeb;
+  --orange: #e5824f;
   --orange-soft: #fff0e6;
   --line: #d8e4e0;
   --danger: #9b361f;
@@ -406,6 +407,72 @@ a:focus-visible {
 .tail-row { background: #fff8f2; }
 .table-footnote { margin: 11px 0 0; color: var(--muted); font-size: 10px; }
 
+.workflow-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+  margin-top: 14px;
+  padding: 13px 17px;
+  border: 1px dashed #bfd3cd;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--muted);
+  font-size: 10px;
+}
+.workflow-preview strong { color: var(--ink); }
+
+.target-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 0.35fr);
+  gap: 12px;
+  align-items: end;
+}
+.target-button { margin-top: 0; }
+.target-error { padding: 9px 12px; border-radius: 9px; background: var(--orange-soft); }
+.target-result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+.target-result-grid article {
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fafcfb;
+}
+.target-result-grid span,
+.target-result-grid small { display: block; color: var(--muted); }
+.target-result-grid span { font-size: 10px; }
+.target-result-grid strong { display: block; margin: 8px 0 5px; font-size: 19px; }
+.target-result-grid small { font-size: 9px; line-height: 1.5; }
+.target-change-positive { border-color: #bee0d9 !important; background: #edf8f5 !important; }
+.target-change-positive strong { color: var(--teal-dark); }
+.target-change-negative { border-color: #eccfc5 !important; background: #fff8f5 !important; }
+.target-change-negative strong { color: var(--danger); }
+
+.probability-chart-scroll { overflow-x: auto; }
+.probability-chart svg { width: 100%; height: auto; min-width: 680px; }
+.probability-chart rect { fill: var(--teal); opacity: 0.82; }
+.probability-chart rect.most-likely { fill: var(--orange); opacity: 1; }
+.chart-axis { stroke: #9baba6; stroke-width: 1; }
+.chart-tick { stroke: #9baba6; }
+.chart-tick-label,
+.axis-label,
+.range-label,
+.expected-spot-label { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+.expected-spot-line { stroke: var(--navy); stroke-width: 2; stroke-dasharray: 5 4; }
+.expected-spot-label { fill: var(--navy); text-anchor: start; font-weight: 800; }
+.range-bracket { stroke-width: 4; stroke-linecap: round; }
+.range-90 { stroke: rgba(23, 55, 79, 0.42); }
+.range-50 { stroke: rgba(229, 130, 79, 0.72); }
+.range-label { font-size: 8px; }
+
+.risk-notices { background: #fbfaf6; }
+.risk-notice-list { display: grid; gap: 8px; padding-left: 20px; margin: 0; }
+.risk-notice-list li { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.risk-notice-list li::marker { color: var(--orange); }
+
 .dashboard-footer {
   padding: 25px 0 0;
   color: var(--muted);
@@ -428,10 +495,15 @@ a:focus-visible {
   .result-section { padding: 22px 16px; }
   .result-heading { align-items: flex-start; flex-direction: column; }
   .range-comparison-grid { grid-template-columns: 1fr; }
+  .target-form,
+  .target-result-grid { grid-template-columns: 1fr; }
   .probability-table th:first-child,
   .probability-table td:first-child { position: sticky; left: 0; background: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; transition: none !important; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

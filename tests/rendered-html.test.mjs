@@ -38,6 +38,10 @@ test("server-renders the Chinese hedge analysis platform", async () => {
   assert.match(html, /远期总金额/);
   assert.match(html, /开始概率分析/);
   assert.match(html, /数据来自 ING、MUFG 与 FRED/);
+  assert.match(html, /先查看分析结果，再填写目标人民币金额/);
+  assert.match(html, /概率分布图作为表格的辅助说明/);
+  assert.match(html, /结果不构成银行报价、交易建议或收益保证/);
+  assert.match(html, /输入真实远期报价，比较不同汇率区间下的人民币收款结果/);
   assert.doesNotMatch(html, /观察的到期即期汇率/);
   assert.doesNotMatch(html, /自由交易搭建器/);
 });
