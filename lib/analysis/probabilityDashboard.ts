@@ -1,4 +1,5 @@
 import type {
+  AutomaticForwardProbabilityResponse,
   ForwardProbabilityInterval,
   ForwardProbabilityRequest,
 } from "../api/forwardProbability.ts";
@@ -117,6 +118,63 @@ export function selectCoreIntervals(
     .slice(0, count)
     .map(({ interval }) => interval)
     .sort((left, right) => left.lower_spot - right.lower_spot);
+}
+
+export function mostLikelyInterval(
+  intervals: ForwardProbabilityInterval[],
+): ForwardProbabilityInterval {
+  if (intervals.length === 0) {
+    throw new Error("概率区间不能为空");
+  }
+  return intervals.reduce((best, interval) =>
+    interval.interval_probability > best.interval_probability
+      ? interval
+      : best,
+  );
+}
+
+export type ProbabilityTableRow =
+  | { kind: "core"; interval: ForwardProbabilityInterval }
+  | {
+      kind: "lower_tail" | "upper_tail";
+      direction: "below" | "above";
+      boundarySpot: number;
+      probability: number;
+      noHedgeBoundaryCny: number;
+      forwardBoundaryCny: number;
+      amountRangeKind: "boundary";
+    };
+
+type ProbabilityProfile =
+  AutomaticForwardProbabilityResponse["probability_profile"];
+
+export function allProbabilityRows(
+  profile: ProbabilityProfile,
+): ProbabilityTableRow[] {
+  return [
+    {
+      kind: "lower_tail",
+      direction: profile.lower_tail.direction,
+      boundarySpot: profile.lower_tail.boundary_spot,
+      probability: profile.lower_tail.probability,
+      noHedgeBoundaryCny: profile.lower_tail.no_hedge_amount_cny,
+      forwardBoundaryCny: profile.lower_tail.forward_strategy_amount_cny,
+      amountRangeKind: "boundary",
+    },
+    ...profile.intervals.map((interval) => ({
+      kind: "core" as const,
+      interval,
+    })),
+    {
+      kind: "upper_tail",
+      direction: profile.upper_tail.direction,
+      boundarySpot: profile.upper_tail.boundary_spot,
+      probability: profile.upper_tail.probability,
+      noHedgeBoundaryCny: profile.upper_tail.no_hedge_amount_cny,
+      forwardBoundaryCny: profile.upper_tail.forward_strategy_amount_cny,
+      amountRangeKind: "boundary",
+    },
+  ];
 }
 
 export function formatProbability(value: number): string {

@@ -17,6 +17,9 @@ import {
   type ForwardLegDraft,
 } from "../../lib/analysis/probabilityDashboard.ts";
 import { AnalysisInputPanel } from "./AnalysisInputPanel";
+import { AnalysisSummary } from "./AnalysisSummary";
+import { DataSourceStatus } from "./DataSourceStatus";
+import { ProbabilityComparisonTable } from "./ProbabilityComparisonTable";
 
 type DashboardStatus =
   | "idle"
@@ -160,11 +163,15 @@ export function ProbabilityDashboard() {
       )}
 
       {response && (
-        <section className="results-placeholder" aria-live="polite">
-          <p className="section-kicker">第二步 · 查看结果</p>
-          <h2>概率分析已经完成</h2>
-          <p>结果仍保留在页面中，下一步会把机构来源、概率区间和金额对比完整展开。</p>
-        </section>
+        <div
+          className={`results-stack${status === "loading_initial" ? " results-dimmed" : ""}`}
+          aria-live="polite"
+          aria-busy={status === "loading_initial"}
+        >
+          <DataSourceStatus response={response} />
+          <AnalysisSummary response={response} />
+          <ProbabilityComparisonTable response={response} />
+        </div>
       )}
 
       <footer className="dashboard-footer">

@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  allProbabilityRows,
   buildRequest,
   coverageSummary,
   formatProbability,
+  mostLikelyInterval,
   selectCoreIntervals,
   validateDraft,
 } from "../lib/analysis/probabilityDashboard.ts";
@@ -32,6 +34,49 @@ const intervalsFixture = Array.from({ length: 20 }, (_, index) => ({
     maximum_amount_cny: 1,
   },
 }));
+
+const intervalFixture = [
+  {
+    ...intervalsFixture[0],
+    lower_spot: 6.55,
+    upper_spot: 6.6,
+    interval_probability: 0.1,
+  },
+  {
+    ...intervalsFixture[1],
+    lower_spot: 6.6,
+    upper_spot: 6.65,
+    interval_probability: 0.141,
+  },
+  {
+    ...intervalsFixture[2],
+    lower_spot: 6.65,
+    upper_spot: 6.7,
+    interval_probability: 0.12,
+  },
+];
+
+const profileFixture = {
+  core_lower_spot: intervalsFixture[0].lower_spot,
+  core_upper_spot: intervalsFixture[19].upper_spot,
+  core_probability: 0.98,
+  bucket_count: 20,
+  intervals: intervalsFixture,
+  lower_tail: {
+    direction: "below" as const,
+    boundary_spot: intervalsFixture[0].lower_spot,
+    probability: 0.01,
+    no_hedge_amount_cny: 6_400_000,
+    forward_strategy_amount_cny: 6_600_000,
+  },
+  upper_tail: {
+    direction: "above" as const,
+    boundary_spot: intervalsFixture[19].upper_spot,
+    probability: 0.01,
+    no_hedge_amount_cny: 7_200_000,
+    forward_strategy_amount_cny: 7_000_000,
+  },
+};
 
 test("builds the fixed USD receivable request without a target", () => {
   assert.deepEqual(buildRequest(draft, null), {
@@ -109,4 +154,19 @@ test("probability ties keep original bucket order", () => {
 
 test("tiny nonzero probability is not formatted as zero", () => {
   assert.equal(formatProbability(0.0002), "<0.1%");
+});
+
+test("most likely interval uses interval probability not an exact spot", () => {
+  const mostLikely = mostLikelyInterval(intervalFixture);
+  assert.equal(mostLikely.lower_spot, 6.6);
+  assert.equal(mostLikely.upper_spot, 6.65);
+  assert.equal(mostLikely.interval_probability, 0.141);
+});
+
+test("expanded rows include open tails and twenty core buckets", () => {
+  const rows = allProbabilityRows(profileFixture);
+  assert.equal(rows.length, 22);
+  assert.equal(rows[0]?.kind, "lower_tail");
+  assert.equal(rows.at(-1)?.kind, "upper_tail");
+  assert.equal(rows[0]?.amountRangeKind, "boundary");
 });

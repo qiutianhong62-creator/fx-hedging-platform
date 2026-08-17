@@ -296,6 +296,116 @@ a:focus-visible {
 .results-placeholder { border-color: #c9e3de; background: #f6fbfa; }
 .results-placeholder p:last-child { margin-bottom: 0; color: var(--muted); }
 
+.results-stack { transition: opacity 0.2s ease; }
+.results-dimmed { opacity: 0.52; pointer-events: none; }
+.result-section {
+  margin-top: 24px;
+  padding: 28px 30px;
+  border: 1px solid rgba(210, 224, 219, 0.9);
+  border-radius: 22px;
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 18px;
+}
+
+.result-heading h2 { margin: 0; font-size: 22px; letter-spacing: -0.025em; }
+.result-heading > div > p:last-child { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.source-state,
+.model-chip {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid #b9d8d2;
+  border-radius: 999px;
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.source-fallback { border-color: #e3aa65; background: #fff7e9; color: #875017; }
+.source-grid,
+.analysis-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.source-card,
+.summary-card,
+.range-comparison-grid article {
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fafcfb;
+}
+
+.source-card-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.source-card-title strong { font-size: 14px; }
+.source-card-title span { color: var(--teal); font-size: 10px; font-weight: 800; }
+.source-card dl { margin: 14px 0; }
+.source-card dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #e8efec; }
+.source-card dt { color: var(--muted); font-size: 10px; }
+.source-card dd { margin: 0; font-size: 10px; font-weight: 700; text-align: right; }
+.source-card a { color: var(--teal-dark); font-size: 10px; font-weight: 800; }
+.source-card > small { color: var(--muted); font-size: 9px; }
+.source-card-history { background: #f4f8fa; }
+.source-unavailable {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  padding: 11px 13px;
+  border: 1px solid #e3aa65;
+  border-radius: 10px;
+  background: #fff7e9;
+  color: #875017;
+  font-size: 10px;
+}
+
+.summary-card span,
+.summary-card small { display: block; color: var(--muted); }
+.summary-card span { font-size: 10px; }
+.summary-card strong { display: block; margin: 8px 0 5px; font-size: 19px; letter-spacing: -0.02em; }
+.summary-card small { font-size: 9px; }
+.summary-card-accent { border-color: #bee0d9; background: linear-gradient(145deg, #e8f5f2, #f7fbfa); }
+.summary-card-accent strong { color: var(--teal-dark); }
+.range-comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.range-comparison-grid h3 { margin: 0 0 12px; font-size: 12px; }
+.range-comparison-grid p { display: flex; justify-content: space-between; gap: 16px; margin: 8px 0 0; font-size: 11px; }
+.range-comparison-grid p > span:first-child { color: var(--muted); }
+.range-comparison-grid p > span:last-child { font-weight: 750; text-align: right; }
+
+.table-heading { align-items: flex-end; }
+.probability-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.probability-table { width: 100%; min-width: 1040px; border-collapse: collapse; }
+.probability-table caption { padding: 12px 14px; background: #f3f8f6; color: var(--muted); font-size: 10px; text-align: left; }
+.probability-table th,
+.probability-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: right; }
+.probability-table thead th { background: #f7faf9; color: var(--muted); font-size: 10px; font-weight: 800; }
+.probability-table tbody th { color: var(--ink); font-size: 11px; white-space: nowrap; }
+.probability-table td { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.probability-table tr:last-child th,
+.probability-table tr:last-child td { border-bottom: 0; }
+.difference-positive { color: var(--teal-dark); font-weight: 850; }
+.difference-negative { color: var(--danger); font-weight: 850; }
+.difference-mixed { color: #805c19; font-weight: 850; }
+.difference-positive::before { content: "增加 "; }
+.difference-negative::before { content: "减少 "; }
+.difference-mixed::before { content: "区间跨越正负 "; }
+.tail-row { background: #fff8f2; }
+.table-footnote { margin: 11px 0 0; color: var(--muted); font-size: 10px; }
+
 .dashboard-footer {
   padding: 25px 0 0;
   color: var(--muted);
@@ -315,6 +425,11 @@ a:focus-visible {
   .forward-leg-row { grid-template-columns: 1fr; }
   .coverage-strip { grid-template-columns: 1fr; }
   .delete-leg-button { width: 100%; }
+  .result-section { padding: 22px 16px; }
+  .result-heading { align-items: flex-start; flex-direction: column; }
+  .range-comparison-grid { grid-template-columns: 1fr; }
+  .probability-table th:first-child,
+  .probability-table td:first-child { position: sticky; left: 0; background: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
