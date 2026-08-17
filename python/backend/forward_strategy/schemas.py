@@ -181,6 +181,7 @@ class ForwardProbabilityProfileInterval(BaseModel):
     probability_above_upper: float
     no_hedge: ProfileAmountRange
     forward_strategy: ProfileAmountRange
+    strategy_minus_no_hedge: ProfileAmountRange
 
 
 class ForwardProbabilityProfileTail(BaseModel):

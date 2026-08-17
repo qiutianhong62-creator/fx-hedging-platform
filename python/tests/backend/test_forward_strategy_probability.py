@@ -56,6 +56,41 @@ def calculate(payload: ForwardStrategyProbabilityRequest):
     )
 
 
+def assert_interval_difference_matches_spot_endpoints(
+    payload: ForwardStrategyProbabilityRequest,
+) -> None:
+    result = calculate(payload)
+    for interval in result.probability_profile.intervals:
+        lower = scenario_amounts_at_spot(payload, interval.lower_spot)
+        upper = scenario_amounts_at_spot(payload, interval.upper_spot)
+        expected = sorted(
+            [
+                lower.strategy_amount_cny - lower.no_hedge_amount_cny,
+                upper.strategy_amount_cny - upper.no_hedge_amount_cny,
+            ]
+        )
+        assert (
+            interval.strategy_minus_no_hedge.minimum_amount_cny
+            == pytest.approx(expected[0], abs=0.01)
+        )
+        assert (
+            interval.strategy_minus_no_hedge.maximum_amount_cny
+            == pytest.approx(expected[1], abs=0.01)
+        )
+
+
+def test_partial_hedge_profile_returns_exact_difference_ranges() -> None:
+    assert_interval_difference_matches_spot_endpoints(request())
+
+
+def test_overhedged_profile_returns_exact_difference_ranges() -> None:
+    assert_interval_difference_matches_spot_endpoints(
+        request(
+            legs=[{"notional_usd": 1_500_000, "forward_rate": 6.80}]
+        )
+    )
+
+
 def test_expected_amounts_reuse_scenario_cashflows() -> None:
     result = scenario_amounts_at_spot(request(), 6.72)
 

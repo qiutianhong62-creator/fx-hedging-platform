@@ -88,6 +88,11 @@ def test_endpoint_returns_strategy_comparison_without_assumptions() -> None:
         "probability_above_upper",
         "no_hedge",
         "forward_strategy",
+        "strategy_minus_no_hedge",
+    }
+    assert set(profile["intervals"][0]["strategy_minus_no_hedge"]) == {
+        "minimum_amount_cny",
+        "maximum_amount_cny",
     }
 
 
