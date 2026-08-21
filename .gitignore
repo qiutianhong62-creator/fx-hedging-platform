@@ -45,5 +45,5 @@ next-env.d.ts
 /outputs/
 /work/
 /.worktrees/
-/.venv/
+/.venv
 /python/.cache/

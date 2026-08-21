@@ -212,6 +212,28 @@ def _profile_amount_range(
     )
 
 
+def _profile_difference_range(
+    bucket: SpotProbabilityBucket,
+    amounts_by_spot: dict[float, ScenarioAmounts],
+) -> ProfileAmountRange:
+    lower = amounts_by_spot[bucket.lower_spot]
+    upper = amounts_by_spot[bucket.upper_spot]
+    values = [
+        cny_amount(
+            Decimal(str(lower.strategy_amount_cny))
+            - Decimal(str(lower.no_hedge_amount_cny))
+        ),
+        cny_amount(
+            Decimal(str(upper.strategy_amount_cny))
+            - Decimal(str(upper.no_hedge_amount_cny))
+        ),
+    ]
+    return ProfileAmountRange(
+        minimum_amount_cny=float(min(values)),
+        maximum_amount_cny=float(max(values)),
+    )
+
+
 def _forward_probability_profile(
     payload: ForwardStrategyProbabilityRequest,
     spot_profile: SpotProbabilityProfile,
@@ -240,6 +262,10 @@ def _forward_probability_profile(
                 interval,
                 amounts_by_spot,
                 strategy=True,
+            ),
+            strategy_minus_no_hedge=_profile_difference_range(
+                interval,
+                amounts_by_spot,
             ),
         )
         for interval in spot_profile.intervals

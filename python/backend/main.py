@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.errors import (
     forecast_exception_handler,
@@ -18,6 +19,12 @@ from backend.services.distributions import ProbabilityCalculationError
 
 
 SERVICE_VERSION = "0.1.0"
+LOCAL_FRONTEND_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 
 def create_app() -> FastAPI:
@@ -25,6 +32,13 @@ def create_app() -> FastAPI:
         title="企业外汇策略分析 API",
         description="USD/CNY 外汇敞口与策略风险分析后端",
         version=SERVICE_VERSION,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=LOCAL_FRONTEND_ORIGINS,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
     )
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(

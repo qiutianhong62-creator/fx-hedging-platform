@@ -3,10 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "企业外汇套保与风险分析平台",
-  description: "面向出口企业的多产品组合套保、收益曲线与风险情景分析平台。",
+  description: "输入真实远期报价，比较不同汇率区间下的人民币收款结果。",
   openGraph: {
     title: "企业外汇套保与风险分析平台",
-    description: "在同一业务起点下，自由组合远期、掉期、期权和定存，并比较不同汇率情景的人民币结果。",
+    description: "输入真实远期报价，比较不同汇率区间下的人民币收款结果。",
     type: "website",
     locale: "zh_CN",
     images: [
