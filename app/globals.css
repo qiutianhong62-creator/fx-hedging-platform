@@ -401,9 +401,6 @@ a:focus-visible {
 .difference-positive { color: var(--teal-dark); font-weight: 850; }
 .difference-negative { color: var(--danger); font-weight: 850; }
 .difference-mixed { color: #805c19; font-weight: 850; }
-.difference-positive::before { content: "增加 "; }
-.difference-negative::before { content: "减少 "; }
-.difference-mixed::before { content: "区间跨越正负 "; }
 .tail-row { background: #fff8f2; }
 .table-footnote { margin: 11px 0 0; color: var(--muted); font-size: 10px; }
 
@@ -507,3 +504,18 @@ a:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+.exposure-selector {
+  margin: 0 0 24px;
+  padding: 18px 22px;
+  border: 1px solid #d6dfdf;
+  border-radius: 16px;
+  background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+}
+
+.exposure-selector legend { font-weight: 700; padding: 0 6px; }
+.exposure-selector label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.exposure-selector input { accent-color: #16766b; width: 18px; height: 18px; }
+.exposure-selector p { flex-basis: 100%; margin: 0; font-size: 13px; color: #526563; }

@@ -1,4 +1,5 @@
 import type { AutomaticForwardProbabilityResponse } from "../../lib/api/forwardProbability.ts";
+import { exposureCopy } from "../../lib/analysis/exposurePresentation.ts";
 
 type ResponseProps = { response: AutomaticForwardProbabilityResponse };
 
@@ -14,7 +15,7 @@ export function RiskNotices({ response }: ResponseProps) {
     dynamicNotices.push("本次使用了备用缓存，数据可能不是最新发布版本。");
   }
   if (response.forward_strategy.coverage.status === "over_hedged") {
-    dynamicNotices.push("远期总金额超过美元应收敞口，策略包含过度套保风险。");
+    dynamicNotices.push(`远期总金额超过${exposureCopy(response.result_kind).exposure}敞口，策略包含过度套保风险。`);
   }
 
   const notices = Array.from(

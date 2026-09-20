@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 
-import type { AutomaticForwardProbabilityResponse } from "../../lib/api/forwardProbability.ts";
+import type { AutomaticForwardProbabilityResponse, ResultKind } from "../../lib/api/forwardProbability.ts";
+import { exposureCopy, improvementRange, signedCnyRange } from "../../lib/analysis/exposurePresentation.ts";
 import {
   allProbabilityRows,
   formatCnyWan,
@@ -23,7 +24,10 @@ function amountRange(minimum: number, maximum: number) {
   );
 }
 
-function differenceRange(minimum: number, maximum: number) {
+function differenceRange(rawMinimum: number, rawMaximum: number, kind: ResultKind) {
+  const { minimum_amount_cny: minimum, maximum_amount_cny: maximum } = improvementRange(
+    { minimum_amount_cny: rawMinimum, maximum_amount_cny: rawMaximum }, kind,
+  );
   const className =
     minimum >= 0
       ? "difference-positive"
@@ -32,8 +36,7 @@ function differenceRange(minimum: number, maximum: number) {
         : "difference-mixed";
   return (
     <span className={className} title={`${formatFullCny(minimum)} 至 ${formatFullCny(maximum)}`}>
-      {formatCnyWan(Math.abs(minimum))}
-      {minimum !== maximum ? ` – ${formatCnyWan(Math.abs(maximum))}` : ""}
+      {signedCnyRange(minimum, maximum)}
     </span>
   );
 }
@@ -44,7 +47,7 @@ function rowKey(row: ProbabilityTableRow): string {
     : `${row.kind}-${row.boundarySpot}`;
 }
 
-function ProbabilityTableRowView({ row }: { row: ProbabilityTableRow }) {
+function ProbabilityTableRowView({ row, kind }: { row: ProbabilityTableRow; kind: ResultKind }) {
   if (row.kind !== "core") {
     const difference = row.forwardBoundaryCny - row.noHedgeBoundaryCny;
     return (
@@ -56,7 +59,7 @@ function ProbabilityTableRowView({ row }: { row: ProbabilityTableRow }) {
         <td>极端尾部</td>
         <td title={formatFullCny(row.noHedgeBoundaryCny)}>{formatCnyWan(row.noHedgeBoundaryCny)}（边界）</td>
         <td title={formatFullCny(row.forwardBoundaryCny)}>{formatCnyWan(row.forwardBoundaryCny)}（边界）</td>
-        <td>{differenceRange(difference, difference)}（边界差额）</td>
+        <td>{differenceRange(difference, difference, kind)}（边界差额）</td>
       </tr>
     );
   }
@@ -69,12 +72,13 @@ function ProbabilityTableRowView({ row }: { row: ProbabilityTableRow }) {
       <td>低于上界 {formatProbability(interval.probability_below_upper)}</td>
       <td>{amountRange(interval.no_hedge.minimum_amount_cny, interval.no_hedge.maximum_amount_cny)}</td>
       <td>{amountRange(interval.forward_strategy.minimum_amount_cny, interval.forward_strategy.maximum_amount_cny)}</td>
-      <td>{differenceRange(interval.strategy_minus_no_hedge.minimum_amount_cny, interval.strategy_minus_no_hedge.maximum_amount_cny)}</td>
+      <td>{differenceRange(interval.strategy_minus_no_hedge.minimum_amount_cny, interval.strategy_minus_no_hedge.maximum_amount_cny, kind)}</td>
     </tr>
   );
 }
 
 export function ProbabilityComparisonTable({ response }: ResponseProps) {
+  const copy = exposureCopy(response.result_kind);
   const [expanded, setExpanded] = useState(false);
   const rows: ProbabilityTableRow[] = expanded
     ? allProbabilityRows(response.probability_profile)
@@ -87,7 +91,7 @@ export function ProbabilityComparisonTable({ response }: ResponseProps) {
       <div className="result-heading table-heading">
         <div>
           <p className="section-kicker">概率明细</p>
-          <h2 id="probability-table-title">汇率区间与人民币收款对比</h2>
+          <h2 id="probability-table-title">汇率区间与人民币{copy.amount}对比</h2>
           <p>
             {expanded
               ? "完整分布包含20个核心区间和两个极端尾部。"
@@ -110,20 +114,20 @@ export function ProbabilityComparisonTable({ response }: ResponseProps) {
               <th>到期汇率区间</th>
               <th>发生概率</th>
               <th>累计概率</th>
-              <th>不套保收款</th>
-              <th>远期策略收款</th>
-              <th>策略差额</th>
+              <th>不套保{copy.amount}</th>
+              <th>远期策略{copy.amount}</th>
+              <th>{copy.improvement}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <ProbabilityTableRowView key={rowKey(row)} row={row} />
+              <ProbabilityTableRowView key={rowKey(row)} row={row} kind={response.result_kind} />
             ))}
           </tbody>
         </table>
       </div>
       <p className="table-footnote">
-        策略差额 = 远期策略收款 − 不套保收款。正数表示增加，负数表示减少。
+        {copy.differenceNote}
       </p>
     </section>
   );

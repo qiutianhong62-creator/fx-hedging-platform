@@ -6,6 +6,7 @@ import type {
 } from "../../lib/analysis/probabilityDashboard.ts";
 import { formatProbability, formatUsd } from "../../lib/analysis/probabilityDashboard.ts";
 import { ForwardLegEditor } from "./ForwardLegEditor";
+import { exposureCopy } from "../../lib/analysis/exposurePresentation.ts";
 
 type AnalysisInputPanelProps = {
   draft: AnalysisDraft;
@@ -36,14 +37,15 @@ export function AnalysisInputPanel({
   onDeleteLeg,
   onSubmit,
 }: AnalysisInputPanelProps) {
+  const copy = exposureCopy(draft.exposureType === "usd_payable" ? "cny_cost" : "cny_proceeds");
   return (
     <section className="analysis-input-card" aria-labelledby="input-title">
       <div className="card-heading">
         <div>
           <p className="section-kicker">第一步 · 输入真实条件</p>
-          <h2 id="input-title">你的美元应收与远期报价</h2>
+          <h2 id="input-title">你的{copy.exposure}与远期报价</h2>
         </div>
-        <span className="scope-chip">USD/CNY · 美元应收 · 同一到期日</span>
+        <span className="scope-chip">USD/CNY · {copy.exposure} · 同一到期日</span>
       </div>
 
       <form
@@ -54,7 +56,7 @@ export function AnalysisInputPanel({
       >
         <div className="analysis-input-grid">
           <label className="dashboard-field">
-            <span>美元应收金额</span>
+            <span>{copy.exposure}金额</span>
             <span className="dashboard-input">
               <input
                 type="number"
@@ -102,7 +104,7 @@ export function AnalysisInputPanel({
 
         <div className="forward-section-heading">
           <div>
-            <p className="section-kicker">远期结汇交易</p>
+            <p className="section-kicker">远期{copy.forward}交易</p>
             <h3>输入银行给你的真实报价</h3>
           </div>
           <button className="secondary-button" type="button" onClick={onAddLeg}>
@@ -117,6 +119,7 @@ export function AnalysisInputPanel({
               leg={leg}
               index={index}
               canDelete={draft.legs.length > 1}
+              forwardLabel={copy.forward}
               onChange={onLegChange}
               onDelete={onDeleteLeg}
             />
@@ -141,7 +144,7 @@ export function AnalysisInputPanel({
 
         {coverage.status === "over_hedged" && (
           <p className="overhedge-warning" role="alert">
-            当前远期金额超过美元应收金额，多出 {formatUsd(coverage.overhedgedUsd)}。
+            当前远期金额超过{copy.exposure}金额，多出 {formatUsd(coverage.overhedgedUsd)}。
             系统允许继续分析，但结果会包含过度套保风险。
           </p>
         )}

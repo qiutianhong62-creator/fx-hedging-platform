@@ -1,3 +1,6 @@
+export type ExposureType = "usd_receivable" | "usd_payable";
+export type ResultKind = "cny_proceeds" | "cny_cost";
+
 export type AmountRange = {
   minimum_amount_cny: number;
   maximum_amount_cny: number;
@@ -16,7 +19,7 @@ export type ForwardProbabilityInterval = {
 
 export type ForwardProbabilityRequest = {
   currency_pair: "USD/CNY";
-  exposure_type: "usd_receivable";
+  exposure_type: ExposureType;
   notional_usd: number;
   maturity_date: string;
   target_cny: number | null;
@@ -74,7 +77,7 @@ export type ForecastSource = {
 export type AutomaticForwardProbabilityResponse = {
   status: "calculated";
   quote_convention: "CNY per 1 USD";
-  result_kind: "cny_proceeds";
+  result_kind: ResultKind;
   distribution: {
     model_type: "lognormal";
     source_type: "market_data";
