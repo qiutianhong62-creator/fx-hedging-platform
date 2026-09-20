@@ -1,4 +1,8 @@
 from datetime import date, timedelta
+from math import log, sqrt
+from statistics import NormalDist
+
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -159,3 +163,60 @@ def test_endpoint_rejects_empty_forward_legs() -> None:
             "message": "请至少输入一笔远期交易",
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("forward_usd", "budget", "critical_spot", "expected_met"),
+    [
+        (500_000, 6_680_000, 6.56, None),
+        (1_000_000, 6_800_000, None, 1.0),
+        (1_000_000, 6_799_999.99, None, 0.0),
+        (1_200_000, 6_800_000, 6.8, None),
+    ],
+)
+def test_payable_budget_probability_handles_partial_full_and_overhedge(
+    forward_usd, budget, critical_spot, expected_met,
+) -> None:
+    payload = valid_payload()
+    payload.update(
+        exposure_type="usd_payable",
+        target_cny=budget,
+        forward_legs=[{"notional_usd": forward_usd, "forward_rate": 6.8}],
+    )
+    app.dependency_overrides[
+        get_automatic_forward_strategy_probability_service
+    ] = automatic_service
+    try:
+        response = client.post(
+            "/api/v1/analysis/forward-strategy/automatic-probability",
+            json=payload,
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    body = response.json()
+    assert body["result_kind"] == "cny_cost"
+    strategy = body["forward_strategy"]
+    assert strategy["expected_amount_cny"] == pytest.approx(
+        forward_usd * 6.8 + (1_000_000 - forward_usd) * 6.65
+    )
+    target = strategy["target_probability"]
+    if critical_spot is None:
+        assert target["critical_spot"] is None
+    else:
+        assert target["critical_spot"] == pytest.approx(critical_spot)
+    if expected_met is None:
+        # Independent CDF calculation: mean 6.65, annual volatility 4.2%, 180 days.
+        sigma = 0.042 * sqrt(180 / 365)
+        below = NormalDist().cdf((log(critical_spot / 6.65) + sigma**2 / 2) / sigma)
+        expected_met = below if forward_usd < 1_000_000 else 1 - below
+    assert target["probability_met"] == pytest.approx(expected_met)
+    assert target["probability_missed"] == pytest.approx(1 - expected_met)
+    for interval in body["probability_profile"]["intervals"]:
+        difference = interval["strategy_minus_no_hedge"]
+        assert difference["minimum_amount_cny"] == pytest.approx(
+            round(forward_usd * (6.8 - interval["upper_spot"]), 2), abs=0.02,
+        )
+        assert difference["maximum_amount_cny"] == pytest.approx(
+            round(forward_usd * (6.8 - interval["lower_spot"]), 2), abs=0.02,
+        )

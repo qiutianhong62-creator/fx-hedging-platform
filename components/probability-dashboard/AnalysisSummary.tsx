@@ -1,4 +1,5 @@
 import type { AutomaticForwardProbabilityResponse } from "../../lib/api/forwardProbability.ts";
+import { exposureCopy } from "../../lib/analysis/exposurePresentation.ts";
 import {
   formatCnyWan,
   formatFullCny,
@@ -24,6 +25,7 @@ function AmountRange({
 }
 
 export function AnalysisSummary({ response }: ResponseProps) {
+  const copy = exposureCopy(response.result_kind);
   const likely = mostLikelyInterval(response.probability_profile.intervals);
 
   return (
@@ -50,14 +52,14 @@ export function AnalysisSummary({ response }: ResponseProps) {
           <small>区间发生概率 {formatProbability(likely.interval_probability)}</small>
         </article>
         <article className="summary-card">
-          <span>不套保预计收款</span>
+          <span>不套保预计{copy.amount}</span>
           <strong title={formatFullCny(response.no_hedge.expected_amount_cny)}>
             {formatCnyWan(response.no_hedge.expected_amount_cny)}
           </strong>
           <small>随到期汇率变动</small>
         </article>
         <article className="summary-card summary-card-accent">
-          <span>远期策略预计收款</span>
+          <span>远期策略预计{copy.amount}</span>
           <strong title={formatFullCny(response.forward_strategy.expected_amount_cny)}>
             {formatCnyWan(response.forward_strategy.expected_amount_cny)}
           </strong>

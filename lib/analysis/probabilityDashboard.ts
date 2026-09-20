@@ -2,6 +2,7 @@ import type {
   AutomaticForwardProbabilityResponse,
   ForwardProbabilityInterval,
   ForwardProbabilityRequest,
+  ExposureType,
 } from "../api/forwardProbability.ts";
 
 export type ForwardLegDraft = {
@@ -11,6 +12,7 @@ export type ForwardLegDraft = {
 };
 
 export type AnalysisDraft = {
+  exposureType: ExposureType;
   notionalUsd: number;
   maturityDate: string;
   targetCny: number | null;
@@ -23,6 +25,7 @@ export type DraftErrors = Partial<
 
 export function createInitialDraft(): AnalysisDraft {
   return {
+    exposureType: "usd_receivable",
     notionalUsd: 0,
     maturityDate: "",
     targetCny: null,
@@ -30,23 +33,35 @@ export function createInitialDraft(): AnalysisDraft {
   };
 }
 
+export function switchExposure(draft: AnalysisDraft, exposureType: ExposureType): AnalysisDraft {
+  return {
+    ...createInitialDraft(),
+    exposureType,
+    notionalUsd: draft.notionalUsd,
+    maturityDate: draft.maturityDate,
+    legs: [{ id: "forward-1", notionalUsd: Number.NaN, forwardRate: Number.NaN }],
+  };
+}
+
 export function coverageSummary(draft: AnalysisDraft) {
+  const exposureUsd = Number.isFinite(draft.notionalUsd) && draft.notionalUsd > 0
+    ? draft.notionalUsd : 0;
   const totalForwardUsd = draft.legs.reduce(
-    (total, leg) => total + leg.notionalUsd,
+    (total, leg) => total + (Number.isFinite(leg.notionalUsd) && leg.notionalUsd > 0 ? leg.notionalUsd : 0),
     0,
   );
   const coverageRatio =
-    draft.notionalUsd > 0 ? totalForwardUsd / draft.notionalUsd : 0;
-  const overhedgedUsd = Math.max(0, totalForwardUsd - draft.notionalUsd);
+    exposureUsd > 0 ? totalForwardUsd / exposureUsd : 0;
+  const overhedgedUsd = Math.max(0, totalForwardUsd - exposureUsd);
   return {
     totalForwardUsd,
     coverageRatio,
-    unhedgedUsd: Math.max(0, draft.notionalUsd - totalForwardUsd),
+    unhedgedUsd: Math.max(0, exposureUsd - totalForwardUsd),
     overhedgedUsd,
     status:
       overhedgedUsd > 0
         ? ("over_hedged" as const)
-        : totalForwardUsd === draft.notionalUsd
+        : exposureUsd > 0 && totalForwardUsd === exposureUsd
           ? ("full_hedge" as const)
           : ("partial_hedge" as const),
   };
@@ -55,7 +70,8 @@ export function coverageSummary(draft: AnalysisDraft) {
 export function validateDraft(draft: AnalysisDraft): DraftErrors {
   const errors: DraftErrors = {};
   if (!Number.isFinite(draft.notionalUsd) || draft.notionalUsd <= 0) {
-    errors.notionalUsd = "美元应收金额必须大于 0";
+    errors.notionalUsd = draft.exposureType === "usd_payable"
+      ? "美元应付金额必须大于 0" : "美元应收金额必须大于 0";
   }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -82,7 +98,8 @@ export function validateDraft(draft: AnalysisDraft): DraftErrors {
     draft.targetCny !== null &&
     (!Number.isFinite(draft.targetCny) || draft.targetCny <= 0)
   ) {
-    errors.targetCny = "目标人民币金额必须大于 0";
+    errors.targetCny = draft.exposureType === "usd_payable"
+      ? "人民币预算上限必须大于 0" : "目标人民币金额必须大于 0";
   }
   return errors;
 }
@@ -93,7 +110,7 @@ export function buildRequest(
 ): ForwardProbabilityRequest {
   return {
     currency_pair: "USD/CNY",
-    exposure_type: "usd_receivable",
+    exposure_type: draft.exposureType,
     notional_usd: draft.notionalUsd,
     maturity_date: draft.maturityDate,
     target_cny: targetCny,

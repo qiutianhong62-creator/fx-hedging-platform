@@ -27,7 +27,8 @@ test("server-renders the Chinese hedge analysis platform", async () => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
-  const html = await response.text();
+  // React inserts hydration comments between static text and interpolated labels.
+  const html = (await response.text()).replace(/<!--.*?-->/gs, "");
   assert.match(html, /<html lang="zh-CN">/i);
   assert.match(html, /<title>企业外汇套保与风险分析平台<\/title>/i);
   assert.match(html, /USD\/CNY · 美元应收 · 同一到期日/);
@@ -41,7 +42,9 @@ test("server-renders the Chinese hedge analysis platform", async () => {
   assert.match(html, /先查看分析结果，再填写目标人民币金额/);
   assert.match(html, /概率分布图作为表格的辅助说明/);
   assert.match(html, /结果不构成银行报价、交易建议或收益保证/);
-  assert.match(html, /输入真实远期报价，比较不同汇率区间下的人民币收款结果/);
+  assert.match(html, /输入真实远期报价，比较不同汇率区间下的人民币收款与付款成本/);
+  assert.match(html, /未来收到美元（出口收款）/);
+  assert.match(html, /未来支付美元（进口付款）/);
   assert.doesNotMatch(html, /观察的到期即期汇率/);
   assert.doesNotMatch(html, /自由交易搭建器/);
 });

@@ -4,6 +4,7 @@ type ForwardLegEditorProps = {
   leg: ForwardLegDraft;
   index: number;
   canDelete: boolean;
+  forwardLabel: string;
   onChange: (id: string, patch: Partial<ForwardLegDraft>) => void;
   onDelete: (id: string) => void;
 };
@@ -16,6 +17,7 @@ export function ForwardLegEditor({
   leg,
   index,
   canDelete,
+  forwardLabel,
   onChange,
   onDelete,
 }: ForwardLegEditorProps) {
@@ -44,7 +46,7 @@ export function ForwardLegEditor({
         </span>
       </label>
       <label className="dashboard-field">
-        <span>真实远期结汇报价</span>
+        <span>真实远期{forwardLabel}报价</span>
         <span className="dashboard-input">
           <input
             type="number"
@@ -60,7 +62,7 @@ export function ForwardLegEditor({
                     : event.target.valueAsNumber,
               })
             }
-            aria-label={`第 ${index + 1} 笔远期结汇报价`}
+            aria-label={`第 ${index + 1} 笔远期${forwardLabel}报价`}
           />
           <small>CNY / USD</small>
         </span>
